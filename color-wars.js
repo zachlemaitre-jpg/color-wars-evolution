@@ -183,15 +183,24 @@ function startGame() {
   if (gameMode === 'online') {
       if (currentRoom === '') {
           let roomInput = document.getElementById('room-input').value.trim();
-          // Si vide, le serveur créera un code. Si rempli, on rejoint.
-          currentRoom = roomInput.toUpperCase(); 
-          socket.emit('joinRoom', currentRoom || 'NEW_ROOM'); 
+          
+          if (roomInput === '') {
+              // 1. Si le champ est vide, on GÉNÈRE un code unique (ex: KX29)
+              currentRoom = Math.random().toString(36).substring(2, 6).toUpperCase();
+          } else {
+              // 2. Si le champ est rempli, on utilise le code tapé pour REJOINDRE
+              currentRoom = roomInput.toUpperCase();
+          }
+          
+          socket.emit('joinRoom', currentRoom); 
       } else if (isHost) {
+          // Si on est déjà dans le salon et qu'on est l'hôte, on lance !
           socket.emit('requestStartGame', { roomCode: currentRoom });
       }
   } else {
+      // Mode Local (inchangé)
       document.getElementById('pregame-overlay').classList.add('hidden');
-      document.getElementById('game-title').style.display = '';
+      document.getElementById('game-title').style.display   = '';
       document.getElementById('game-subtitle').style.display = '';
       document.getElementById('game-subtitle').innerHTML = `MODE LOCAL - MULTIJOUEUR SUR LE MÊME ÉCRAN`;
       document.getElementById('game-container').style.display = '';
