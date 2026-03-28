@@ -1337,54 +1337,61 @@ function updatePowerupUI() {
 }
 
 function resetGame() {
-  // SÉCURITÉ : Bloque les resquilleurs en ligne
-  if (gameMode === 'online' && !isHost) return;
-
-  // 1. Reset des variables globales
-  gameCount++; gameOver = false; animating = false; turnCount = 0; selectedPowerup = 'normal';
-  playerHasPlaced = {}; powerupStock = {}; tumorTrappedTurns = {};
-  window.explosionProcessing = false; window.explosionQueue = []; activeProjectiles = 0;
+  // 1. RÉINITIALISATION DES VARIABLES (Pour TOUT LE MONDE)
+  gameCount++; 
+  gameOver = false; 
+  animating = false; 
+  turnCount = 0; 
+  selectedPowerup = 'normal';
+  playerHasPlaced = {}; 
+  powerupStock = {}; 
+  tumorTrappedTurns = {};
+  window.explosionProcessing = false; 
+  window.explosionQueue = []; 
+  activeProjectiles = 0;
   currentBounds = { minR: 0, maxR: ROWS - 1, minC: 0, maxC: COLS - 1 };
 
-  // 2. Choix du Biome
-  const biomeSelect = document.getElementById('biome-select');
-  if (biomeSelect) currentBiome = biomeSelect.value;
-  
-  // 3. Reset des Joueurs (Version complète)
   for (let p = 1; p <= playerCount; p++) {
-    playerHasPlaced[p] = false; tumorTrappedTurns[p] = 0;
-    powerupStock[p] = {};
-    if (bombsEnabled) powerupStock[p].bomb = MAX_BOMBS;
-    if (shieldsEnabled) powerupStock[p].shield = MAX_SHIELDS;
-    if (iceEnabled) powerupStock[p].ice = MAX_ICE;
+    playerHasPlaced[p] = false; 
+    tumorTrappedTurns[p] = 0;
+    powerupStock[p] = { bomb: MAX_BOMBS, shield: MAX_SHIELDS, ice: MAX_ICE };
   }
   
-  // 4. Événements (Tumeur & Foudre)
-  if (overgrowthEnabled) { 
-      tumorScheduledTurn = (currentBiome === 'wasteland') ? 1 : rnd(15, 100); 
-  } else tumorScheduledTurn = -1;
-  
-  tumorSpawnTurn = -1; tumorActive = false;
-  lightningFired = false; lightningScheduledTurn = rnd(1, 100);
-  
-  // 5. Ordre de jeu
   currentPlayer = ((gameCount - 1) % playerCount) + 1;
   document.getElementById('winner-overlay').className = '';
-  
-  // 6. Reconstruction physique
-  generateMap(); initGrid(); buildBoard();
-  document.getElementById('board').className = currentBiome; 
-  renderAll();
-  
-  // 7. SYNCHRONISATION (Crucial pour le mode online)
-  if (gameMode === 'online' && isHost) {
-      socket.emit('saveMap', { room: currentRoom, grid: grid });
+
+  // 2. LOGIQUE DE GÉNÉRATION (SEUL L'HÔTE décide de la structure)
+  if (isHost || gameMode === 'local') {
+      const biomeSelect = document.getElementById('biome-select');
+      if (biomeSelect) currentBiome = biomeSelect.value;
+
+      if (overgrowthEnabled) { 
+          tumorScheduledTurn = (currentBiome === 'wasteland') ? 1 : rnd(15, 100); 
+      } else tumorScheduledTurn = -1;
+      
+      tumorSpawnTurn = -1; tumorActive = false;
+      lightningFired = false; lightningScheduledTurn = rnd(1, 100);
+
+      generateMap(); // Crée les murs et trous noirs
+      initGrid();    // Remplit la variable 'grid'
   }
 
-  // 8. UI et Status
+  // 3. CONSTRUCTION VISUELLE (TOUT LE MONDE doit créer les cases HTML)
+  buildBoard(); 
+  document.getElementById('board').className = currentBiome; 
+  
+  // 4. AFFICHAGE ET SYNCHRONISATION (L'hôte affiche et diffuse)
+  if (isHost || gameMode === 'local') {
+      renderAll();
+      if (gameMode === 'online') {
+          socket.emit('saveMap', { room: currentRoom, grid: grid });
+      }
+  }
+
   const mi = document.getElementById('map-info');
   if (mi) mi.textContent = `Biome: ${currentBiome.toUpperCase()} · Map ${gameCount} · ${COLS}x${ROWS}`;
-  updateStatusForTurn(); updatePowerupUI();
+  updateStatusForTurn(); 
+  updatePowerupUI();
 }
 
 // ─── ÉCOUTES DU SERVEUR (MULTIJOUEUR) ─────────────────────────────────────────
@@ -1468,14 +1475,25 @@ if (socket) {
     });
 
     socket.on('returnToLobby', () => {
-        selectMode('online'); // Réaffiche le salon
+        // 1. On cache le jeu et on affiche le menu de configuration
+        document.getElementById('game-container').style.display = 'none';
+        document.getElementById('game-title').style.display = 'none';
+        document.getElementById('game-subtitle').style.display = 'none';
+        document.getElementById('pregame-overlay').classList.remove('hidden');
+        
+        // 2. On affiche bien le code du salon
         document.getElementById('lobby-code-display').style.display = 'block';
-    });
 
-    socket.on('hostMigrated', () => {
-        isHost = true;
-        document.getElementById('host-settings-area').classList.remove('disabled-for-client');
-        document.getElementById('start-game-btn').style.display = 'inline-block';
-        document.getElementById('lobby-code-display').innerHTML = `SALON : <strong>${currentRoom}</strong> <span class="spectator-badge" style="background:var(--gold);color:#000;">Vous êtes le nouvel Hôte</span>`;
+        // 3. LOGIQUE DE VERROUILLAGE (C'est ici qu'on corrige ton bug)
+        // On ne réinitialise PAS 'isHost', on utilise sa valeur actuelle.
+        if (!isHost) {
+            // Si je ne suis pas l'hôte, je RE-VERROUILLE l'interface
+            document.getElementById('host-settings-area').classList.add('disabled-for-client');
+            document.getElementById('start-game-btn').style.display = 'none';
+        } else {
+            // Si je suis l'hôte, je garde le contrôle
+            document.getElementById('host-settings-area').classList.remove('disabled-for-client');
+            document.getElementById('start-game-btn').style.display = 'inline-block';
+        }
     });
 }
