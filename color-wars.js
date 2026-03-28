@@ -158,39 +158,40 @@ function selectMode(mode) {
   document.getElementById('main-menu-overlay').style.display = 'none';
   document.getElementById('pregame-overlay').classList.remove('hidden');
   
+  // NETTOYAGE SYSTÉMATIQUE À L'OUVERTURE
+  currentRoom = '';
+  isHost = (mode === 'local'); // Host en local, pas encore en ligne
+  document.getElementById('room-input').value = '';
+  document.getElementById('lobby-code-display').style.display = 'none';
+  document.getElementById('host-settings-area').classList.remove('disabled-for-client');
+  document.getElementById('start-game-btn').style.display = 'inline-block';
+
   if (mode === 'online') {
     if (!socket) {
-        alert("⚠️ Serveur introuvable ! Lancez 'node server.js' dans votre terminal pour jouer en ligne.");
-        goToMenu(); return;
+        alert("⚠️ Serveur introuvable !");
+        goToMainMenu(); return;
     }
     document.getElementById('online-inputs').style.display = 'block';
-    document.getElementById('start-game-btn').innerText = "Créer / Rejoindre"; // <-- AJOUTÉ ICI
+    document.getElementById('start-game-btn').innerText = "Créer / Rejoindre";
   } else {
     document.getElementById('online-inputs').style.display = 'none';
-    isHost = true;
-    document.getElementById('host-settings-area').classList.remove('disabled-for-client');
-    document.getElementById('lobby-code-display').style.display = 'none';
-    document.getElementById('start-game-btn').style.display = 'inline-block';
-    document.getElementById('start-game-btn').innerText = "Start Game"; // <-- AJOUTÉ ICI
-    currentRoom = ''; // Reset pour le local
+    document.getElementById('start-game-btn').innerText = "Start Game";
   }
 }
 
 function startGame() {
   if (gameMode === 'online') {
       if (currentRoom === '') {
-          // 1er clic : On rejoint ou on crée le salon
           let roomInput = document.getElementById('room-input').value.trim();
-          currentRoom = roomInput === '' ? Math.random().toString(36).substring(2, 6).toUpperCase() : roomInput.toUpperCase();
-          socket.emit('joinRoom', currentRoom);
+          // Si vide, le serveur créera un code. Si rempli, on rejoint.
+          currentRoom = roomInput.toUpperCase(); 
+          socket.emit('joinRoom', currentRoom || 'NEW_ROOM'); 
       } else if (isHost) {
-          // 2ème clic : On est l'hôte dans le salon, on lance la partie !
           socket.emit('requestStartGame', { roomCode: currentRoom });
       }
   } else {
-      // Mode Local
       document.getElementById('pregame-overlay').classList.add('hidden');
-      document.getElementById('game-title').style.display   = '';
+      document.getElementById('game-title').style.display = '';
       document.getElementById('game-subtitle').style.display = '';
       document.getElementById('game-subtitle').innerHTML = `MODE LOCAL - MULTIJOUEUR SUR LE MÊME ÉCRAN`;
       document.getElementById('game-container').style.display = '';
@@ -199,14 +200,23 @@ function startGame() {
   }
 }
 
-function goToMenu() {
-  gameOver   = false; animating  = false;
-  document.getElementById('winner-overlay').className = '';
-  document.getElementById('game-title').style.display    = 'none';
-  document.getElementById('game-subtitle').style.display = 'none';
-  document.getElementById('game-container').style.display = 'none';
-  document.body.classList.remove('turn-p1', 'turn-p2', 'turn-p3', 'turn-p4');
-  document.getElementById('pregame-overlay').classList.remove('hidden');
+function goToMainMenu() {
+  document.getElementById('pregame-overlay').classList.add('hidden');
+  document.getElementById('main-menu-overlay').style.display = 'flex';
+
+  if (gameMode === 'online' && socket) {
+      socket.disconnect();
+      setTimeout(() => { socket.connect(); }, 150);
+      
+      // Reset variables de session
+      currentRoom = '';
+      isHost = false;
+      
+      // Reset visuel immédiat
+      document.getElementById('lobby-code-display').style.display = 'none';
+      document.getElementById('lobby-code-display').innerHTML = '';
+      document.getElementById('room-input').value = '';
+  }
 }
 
 function goToMainMenu() {
