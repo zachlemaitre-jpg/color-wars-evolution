@@ -787,13 +787,26 @@ function processExplosionQueue(initialQueue) {
       }
 
       if (!window.explosionQueue.length) {
+          // On vérifie s'il reste des points en train de voler ou de glisser
           if (activeProjectiles > 0) {
-              setTimeout(next, 50); return; // On attend que tous les vols asynchrones (rebonds, glissades) atterrissent
+              setTimeout(next, 50); 
+              return; 
           }
+
+          // Tout est fini : on arrête l'animation
           window.explosionProcessing = false;
           animating = false;
+          
+          // On rafraîchit l'affichage final
           renderAll();
           checkWin();
+
+          // --- SYNCHRONISATION CRUCIALE ---
+          // Si c'était une explosion automatique (bombe, geyser, foudre),
+          // l'Hôte impose sa version du plateau à tout le monde maintenant.
+          if (gameMode === 'online' && isHost) {
+              socket.emit('saveMap', { room: currentRoom, grid: grid });
+          }
           return;
       }
 
@@ -956,15 +969,19 @@ function animateSuckIn(cx, cy, player, dtype, cb) {
 function advanceTurn() {
   turnCount++;
   tickIce(); 
-  tickBombs();
-  checkLightningStrike();
-  handleTumorLogic(); 
-  tickGeysers();
-  tickConveyors();
+  
+  // SEUL L'HÔTE calcule l'aléatoire
+  if (isHost) {
+      tickBombs();
+      checkLightningStrike();
+      handleTumorLogic(); 
+      tickGeysers();
+      tickConveyors();
+  }
 
   if (sismicEnabled && turnCount >= 100 && ((turnCount - 100) % 20 === 0)) {
-    triggerSismicCollapse();
-    return;
+      if (isHost) triggerSismicCollapse(); // L'hôte déclenche le séisme
+      return;
   }
 
   finalizeTurn();
@@ -1023,30 +1040,23 @@ function tickConveyors() {
 }
 
 function finalizeTurn() {
-  if (playerHasPlaced[currentPlayer] && !isPlayerDead(currentPlayer)) {
-    let ownsCells = false; let allContaminated = true;
-    for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
-        if (grid[r][c].owner === currentPlayer && !grid[r][c].isDestroyed) {
-          ownsCells = true;
-          if (!grid[r][c].isContaminated) allContaminated = false;
-        }
-    }
-    if (ownsCells && allContaminated) {
-      tumorTrappedTurns[currentPlayer] = (tumorTrappedTurns[currentPlayer] || 0) + 1;
-      if (tumorTrappedTurns[currentPlayer] >= 3) {
-        for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
-            if (grid[r][c].owner === currentPlayer) { grid[r][c].owner = 0; grid[r][c].dots = []; }
-        }
-        setStatus(`${P_NAME[currentPlayer]} a été dévoré par la tumeur !`, 'warn');
-        tumorTrappedTurns[currentPlayer] = 0; renderAll();
-      }
-    } else tumorTrappedTurns[currentPlayer] = 0;
+  // --- SYNCHRONISATION FORCÉE ---
+  if (gameMode === 'online' && isHost) {
+      socket.emit('saveMap', { room: currentRoom, grid: grid });
   }
-  
+
+  // LOGIQUE DE PASSAGE AU JOUEUR SUIVANT 
   let attempts = 0;
-  do { currentPlayer = (currentPlayer % playerCount) + 1; attempts++; } while (!canPlayerPlay(currentPlayer) && attempts < playerCount);
+  do { 
+      currentPlayer = (currentPlayer % playerCount) + 1; 
+      attempts++; 
+  } while (!canPlayerPlay(currentPlayer) && attempts < playerCount);
   
-  selectedPowerup = 'normal'; updatePowerupUI(); updatePanels(); updateStatusForTurn(); checkWin();
+  selectedPowerup = 'normal'; 
+  updatePowerupUI(); 
+  updatePanels(); 
+  updateStatusForTurn(); 
+  checkWin();
 }
 
 function tickIce() {
