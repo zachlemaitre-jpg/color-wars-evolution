@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Color Wars</title>
+  <link rel="stylesheet" href="color-wars.css">
+</head>
+<body>
+
+<div id="main-menu-overlay" style="position: fixed; inset: 0; z-index: 300; background: var(--bg); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 30px;">
+  <div class="pregame-title" style="font-size: clamp(3rem, 8vw, 5rem);">Color Wars</div>
+  <div class="pregame-subtitle">Sélectionnez le mode de jeu</div>
+  
+  <div style="display: flex; gap: 20px; flex-wrap: wrap; justify-content: center;">
+    <button class="start-btn" onclick="selectMode('local')">Local (Même écran)</button>
+    <button class="start-btn" onclick="selectMode('online')">En Ligne (Multijoueur)</button>
+  </div>
+
+  <div style="display: flex; gap: 15px; margin-top: 10px;">
+    <button class="manual-btn" onclick="openHostTutorial()">📡 Héberger</button>
+    <button class="manual-btn" onclick="openRulebook()">📖 Manuel</button>
+  </div>
+</div>
+
+<div id="pregame-overlay" class="hidden">
+  <div class="pregame-title">Color Wars</div>
+  <div class="pregame-subtitle">Chain Reaction · Strategic Edition</div>
+
+  <div class="pregame-section">
+    <div class="pregame-label">Number of players</div>
+    <div class="player-count-btns">
+      <div class="pc-btn" id="pc-2" onclick="selectPlayerCount(2)">2<span class="pc-sub">players</span></div>
+      <div class="pc-btn selected" id="pc-3" onclick="selectPlayerCount(3)">3<span class="pc-sub">players</span></div>
+      <div class="pc-btn" id="pc-4" onclick="selectPlayerCount(4)">4<span class="pc-sub">players</span></div>
+    </div>
+    <div class="player-swatches">
+      <div class="swatch s1 on" id="sw1"></div>
+      <div class="swatch s2 on" id="sw2"></div>
+      <div class="swatch s3 on" id="sw3"></div>
+      <div class="swatch s4"    id="sw4"></div>
+    </div>
+  </div>
+
+  <div class="pregame-section">
+    <div class="pregame-label">Grid Size</div>
+    <div class="player-count-btns">
+      <div class="pc-btn" id="gs-small" onclick="selectGridSize('small')">
+        <svg width="30" height="30" viewBox="0 0 30 30" style="opacity: 0.8;">
+          <defs>
+            <pattern id="grid-s" width="5" height="5" patternUnits="userSpaceOnUse">
+              <rect width="4" height="4" fill="currentColor" rx="1"/>
+            </pattern>
+          </defs>
+          <rect width="30" height="30" fill="url(#grid-s)" />
+        </svg>
+        <span class="pc-sub">6x6</span>
+      </div>
+      <div class="pc-btn selected" id="gs-normal" onclick="selectGridSize('normal')">
+        <svg width="40" height="32" viewBox="0 0 40 32" style="opacity: 0.8;">
+          <defs>
+            <pattern id="grid-n" width="4" height="4" patternUnits="userSpaceOnUse">
+              <rect width="3" height="3" fill="currentColor" rx="0.5"/>
+            </pattern>
+          </defs>
+          <rect width="40" height="32" fill="url(#grid-n)" />
+        </svg>
+        <span class="pc-sub">8x10</span>
+      </div>
+      <div class="pc-btn" id="gs-big" onclick="selectGridSize('big')">
+        <svg width="45" height="33" viewBox="0 0 45 33" style="opacity: 0.8;">
+          <defs>
+            <pattern id="grid-b" width="3" height="3" patternUnits="userSpaceOnUse">
+              <rect width="2" height="2" fill="currentColor" rx="0.5"/>
+            </pattern>
+          </defs>
+          <rect width="45" height="33" fill="url(#grid-b)" />
+        </svg>
+        <span class="pc-sub">11x15</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="pregame-section">
+    <div class="pregame-label">Map Biome</div>
+    <div class="biome-selector-wrap">
+      <select id="biome-select" class="biome-dropdown">
+        <option value="classic">Classic (Standard Rules)</option>
+        <option value="labyrinth">Labyrinth (Dense Walls)</option>
+        <option value="archipelago">Archipelago (Black Hole Islands)</option>
+        <option value="quantum">Quantum Nexus (Heavy Teleportation)</option>
+        <option value="wasteland">Contaminated Wasteland (Turn 1 Tumor)</option>
+        <option value="glacier">Frozen Glacier (Sliding Ice)</option>
+        <option value="foundry">Industrial Foundry (Conveyor Belts)</option>
+        <option value="cavern">Crystal Cavern (Reflective Walls)</option>
+        <option value="volcanic">Volcanic Crater (Magma Geysers)</option>
+      </select>
+    </div>
+  </div>
+  
+  <div class="pregame-section toggles-container">
+    <div class="toggle-group">
+      <div class="pregame-label">Powerups</div>
+      <div class="toggle-row">
+        <div class="lightning-toggle active" id="pregame-shields" onclick="togglePregameShields()">
+          <span class="lightning-toggle-icon">🛡️</span>
+          <span class="lightning-toggle-label">Shields</span>
+          <span class="lightning-toggle-pill"></span>
+        </div>
+        <div class="lightning-toggle active" id="pregame-bombs" onclick="togglePregameBombs()">
+          <span class="lightning-toggle-icon">💣</span>
+          <span class="lightning-toggle-label">Bombs</span>
+          <span class="lightning-toggle-pill"></span>
+        </div>
+        <div class="lightning-toggle active" id="pregame-ice" onclick="togglePregameIce()">
+          <span class="lightning-toggle-icon">🧊</span>
+          <span class="lightning-toggle-label">Ice Blocs</span>
+          <span class="lightning-toggle-pill"></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="toggle-group">
+      <div class="pregame-label">Map Features</div>
+      <div class="toggle-row">
+        <div class="lightning-toggle active" id="pregame-blackholes" onclick="togglePregameBlackHoles()">
+          <span class="lightning-toggle-icon">🕳️</span>
+          <span class="lightning-toggle-label">Black Holes</span>
+          <span class="lightning-toggle-pill"></span>
+        </div>
+        <div class="lightning-toggle active" id="pregame-walls" onclick="togglePregameWalls()">
+          <span class="lightning-toggle-icon">🧱</span>
+          <span class="lightning-toggle-label">Walls</span>
+          <span class="lightning-toggle-pill"></span>
+        </div>
+        <div class="lightning-toggle active" id="pregame-teleporters" onclick="togglePregameTeleporters()">
+          <span class="lightning-toggle-icon">⟡</span>
+          <span class="lightning-toggle-label">Teleporters</span>
+          <span class="lightning-toggle-pill"></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="toggle-group">
+      <div class="pregame-label">Events</div>
+      <div class="toggle-row">
+        <div class="lightning-toggle active" id="pregame-lightning" onclick="togglePregameLightning()">
+          <span class="lightning-toggle-icon">⚡</span>
+          <span class="lightning-toggle-label">Lightning Strike</span>
+          <span class="lightning-toggle-pill"></span>
+        </div>
+        <div class="lightning-toggle active" id="pregame-overgrowth" onclick="togglePregameOvergrowth()">
+          <span class="lightning-toggle-icon">🌿</span>
+          <span class="lightning-toggle-label">Vegetal Tumor</span>
+          <span class="lightning-toggle-pill"></span>
+        </div>
+        <div class="lightning-toggle active" id="pregame-sismic" onclick="togglePregameSismic()">
+          <span class="lightning-toggle-icon">🌋</span>
+          <span class="lightning-toggle-label">Sismic Zone</span>
+          <span class="lightning-toggle-pill"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="pregame-main-actions">
+    <div id="online-inputs" style="display:none; width: 100%; text-align: center; margin-bottom: 15px;">
+      <input type="text" id="room-input" placeholder="Code du salon (vide = créer)" style="padding: 12px 20px; border-radius: 12px; border: 2px solid var(--gold); background: var(--panel); color: white; text-align: center; font-family: 'Space Mono', monospace; font-size: 1rem;">
+    </div>
+    
+    <button class="manual-btn" onclick="goToMainMenu()">← Retour</button>
+    
+    <button class="manual-btn" onclick="openHostTutorial()">📡 Héberger</button>
+    <button class="manual-btn" onclick="openRulebook()">📖 Manuel</button>
+    <button class="start-btn" onclick="startGame()">Start Game</button>
+  </div>
+</div>
+
+<h1 id="game-title" style="display:none">Color Wars</h1>
+<p class="subtitle" id="game-subtitle" style="display:none">Chain Reaction · Strategic Edition</p>
+<div class="game-container" id="game-container" style="display:none"></div>
+
+<div id="winner-overlay">
+  <h2 id="winner-text"></h2>
+  <button class="primary" onclick="resetGame()">Play again</button>
+  <button onclick="goToMenu()">Back to menu</button>
+</div>
+
+<div id="fusion-overlay" class="hidden">
+  <div class="fusion-modal">
+    <div class="fusion-header">
+      <h3>Fusion</h3>
+      <button class="close-fusion" onclick="closeFusionModal()">×</button>
+    </div>
+    <p>Choisissez un joueur à qui céder vos cases. Attention, chaque case transmise perdra 1 point !</p>
+    <div id="fusion-players" class="fusion-players"></div>
+  </div>
+</div>
+
+<div id="rulebook-overlay" class="hidden">
+  <div class="rulebook-modal">
+    <div class="rulebook-header">
+      <h2>📖 Manuel de Jeu : Color Wars</h2>
+      <button class="close-rulebook" onclick="closeRulebook()">×</button>
+    </div>
+    <div class="rulebook-content">
+      
+      <p class="rulebook-intro"><strong>But du jeu :</strong> Dominer le plateau en propageant votre couleur grâce à des réactions en chaîne explosives, et éliminer tous les autres joueurs.</p>
+
+      <h3>1. Configuration de la partie</h3>
+      <p>Avant de lancer la partie, le menu principal vous permet de paramétrer le champ de bataille :</p>
+      <ul>
+        <li><strong>Nombre de joueurs :</strong> De 2 à 4 joueurs (Rouge, Bleu, Vert, Jaune).</li>
+        <li><strong>Taille de la grille :</strong> Petite (6x6), Normale (8x10) ou Grande (11x15).</li>
+        <li><strong>Les Modificateurs (Toggles) :</strong> Vous pouvez activer ou désactiver à la carte les Pouvoirs, les Éléments de terrain et les Événements aléatoires.</li>
+        <li><strong>Le Biome (Type de Carte) :</strong>
+          <ul>
+            <li><em>Classic :</em> 10% de murs. Équilibré et standard.</li>
+            <li><em>Labyrinth :</em> 30% de murs. Très dense, parfait pour les blocages stratégiques.</li>
+            <li><em>Archipelago :</em> 25% de Trous noirs et 5% de murs. Le terrain est fragmenté en îles dangereuses.</li>
+            <li><em>Quantum Nexus :</em> 8 Téléporteurs (4 paires), aucun mur ni trou noir. Le chaos total.</li>
+            <li><em>Contaminated Wasteland :</em> 10% de murs, 5% de trous noirs, et la Tumeur végétale apparaît obligatoirement au centre de la carte dès le tour 1.</li>
+            <li><em>Frozen Glacier :</em> 20% de glace glissante. Attaques à très longue distance.</li>
+            <li><em>Industrial Foundry :</em> 15% de tapis roulants qui déplacent les points à la fin du tour.</li>
+            <li><em>Crystal Cavern :</em> 20% de murs miroirs qui font rebondir les explosions.</li>
+            <li><em>Volcanic Crater :</em> 10% de geysers de lave qui accumulent des points neutres et explosent.</li>
+          </ul>
+        </li>
+      </ul>
+
+      <h3>2. Règles de Base et Tour de Jeu</h3>
+      <ul>
+        <li><strong>Le Premier Tour (Le Déploiement) :</strong> Le premier joueur à jouer doit obligatoirement cliquer sur une case vide (sans points ni propriétaire) pour y placer d'un coup 3 points de sa couleur.</li>
+        <li><strong>Les Tours Suivants :</strong> Vous ne pouvez cliquer que sur des cases qui vous appartiennent déjà (qui contiennent au moins un de vos points) pour y ajouter 1 point.</li>
+        <li><strong>L'Explosion (La Réaction en Chaîne) :</strong> Lorsqu'une case atteint 4 points (le seuil critique), elle explose. Elle se vide entièrement et projette 1 point sur chacune des 4 cases adjacentes (Haut, Bas, Gauche, Droite).</li>
+        <li><strong>La Capture :</strong> Si vos points atterrissent sur une case ennemie lors d'une explosion, vous convertissez instantanément cette case et tous les points qu'elle contient à votre couleur. Cela peut déclencher de nouvelles explosions en cascade !</li>
+        <li><strong>Élimination :</strong> Un joueur qui n'a plus aucune case sur le plateau est définitivement éliminé.</li>
+      </ul>
+
+      <h3>3. L'Arsenal : Les Pouvoirs Spéciaux</h3>
+      <p>Chaque joueur dispose d'un stock limité d'objets spéciaux à sélectionner dans son interface avant de cliquer sur une case :</p>
+      <ul>
+        <li><strong>Le Bouclier (x3) :</strong> Protège le point placé. Si une explosion ennemie touche cette case, le bouclier absorbe l'impact (il est détruit) mais la case ne change pas de propriétaire.</li>
+        <li><strong>La Bombe (x2) :</strong> Place un point explosif sur la case. Ce point agit comme un minuteur : après 3 tours complets, il déclenche artificiellement l'explosion de la case, peu importe le nombre de points présents. Les points projetés appartiendront au joueur qui a posé la bombe (ou au dernier propriétaire).</li>
+        <li><strong>Le Bloc de Glace (x1) :</strong> Gèle entièrement la case ciblée pendant 20 tours. Une case gelée ne peut pas exploser, ne peut pas recevoir de nouveaux points, ne peut pas être infectée par la tumeur, et bloque les réactions en chaîne. <em>Attention : vous ne pouvez pas geler la toute dernière case active du plateau !</em></li>
+      </ul>
+
+      <h3>4. Le Terrain : Éléments Spéciaux</h3>
+      <ul>
+        <li><strong>Les Murs (Walls) :</strong> Des obstacles infranchissables. Si un point est projeté contre un mur, il est perdu.</li>
+        <li><strong>Les Murs Cassables (Breakable Walls) :</strong> Ils ont 5 points de vie (affichés sur la case). Chaque point projeté par une explosion lui retire 1 PV. À 0 PV, le mur est détruit et devient une case normale.</li>
+        <li><strong>Les Trous Noirs (Black Holes) :</strong> Ils aspirent et détruisent instantanément tout point qui atterrit dessus.</li>
+        <li><strong>Les Téléporteurs :</strong> Si un point atterrit sur un téléporteur suite à une explosion, il est instantanément réexpédié sur une autre case valide choisie au hasard sur le plateau.</li>
+      </ul>
+
+      <h3>5. Événements Cataclysmiques</h3>
+      <p>Si ces règles sont activées, l'environnement se retournera contre les joueurs :</p>
+      <ul>
+        <li><strong>La Foudre (Lightning Strike) :</strong> Frappe une seule fois par partie, à un tour aléatoire (entre 1 et 100). Elle cible aléatoirement une case contenant exactement 3 points et ajoute un 4ème point neutre, provoquant une explosion surprise immédiate.</li>
+        <li><strong>La Tumeur Végétale (Vegetal Tumor) :</strong> Apparaît aléatoirement (entre le tour 15 et 100) sur une case vide.
+          <ul>
+            <li><em>Expansion :</em> Tous les 25 tours, la tumeur s'étend aux cases adjacentes valides.</li>
+            <li><em>Drainage :</em> Tous les 10 tours, les épines de la tumeur retirent 1 point à chaque case contaminée contenant des points de joueurs.</li>
+            <li><em>Assimilation :</em> Vous pouvez toujours jouer sur des cases contaminées. Cependant, si TOUTES vos cases se trouvent sur la tumeur pendant 3 tours consécutifs, vous êtes dévoré et éliminé du jeu ! Vous pouvez détruire la tumeur centrale en la gelant avec un Bloc de Glace.</li>
+          </ul>
+        </li>
+        <li><strong>L'Effondrement Sismique (Sismic Zone) :</strong> À partir du tour 100, une alerte retentit. Les bords extérieurs de la carte s'effondrent dans le vide. Cet effondrement se répète tous les 20 tours, rétrécissant inexorablement la carte vers le centre et détruisant tout ce qui s'y trouve (cases, murs, et même la tumeur !).</li>
+      </ul>
+
+      <h3>6. Actions Stratégiques de l'Interface</h3>
+      <ul>
+        <li><strong>La Fusion :</strong> Dans votre interface, vous pouvez choisir de fusionner avec un autre joueur encore en vie. Vous lui cédez immédiatement toutes vos cases. <em>Attention : chaque case transférée perdra 1 point lors de la transaction !</em></li>
+        <li><strong>Quitter :</strong> Vous abandonnez la partie. Toutes vos cases se vident instantanément et redeviennent neutres.</li>
+      </ul>
+
+      <h3>Les 9 Biomes (Terrains de Jeu)</h3>
+      <p>Le choix du biome définit l'apparence de la grille, la génération mathématique des obstacles, et modifie parfois les règles de survie.</p>
+      
+      <div class="biome-desc">
+        <h4>Biome : Classic (Standard Rules)</h4>
+        <p><strong>Visuel :</strong> Un damier épuré bleu nuit et gris sombre, conçu pour une lisibilité compétitive maximale.</p>
+        <p><strong>Génération :</strong> Dynamique et adaptative. C'est le seul biome dont la génération dépend de la taille de la grille choisie (Small, Normal, Big). Il génère toujours un mélange équilibré de Murs (ex: 3 à 5 en normal), de Trous Noirs (2 à 3) et de Téléporteurs (2 à 3).</p>
+        <p><strong>Stratégie :</strong> L'expérience originelle. L'équilibre parfait pour des affrontements tactiques classiques.</p>
+      </div>
+
+      <div class="biome-desc">
+        <h4>Biome : Labyrinth (Dense Walls)</h4>
+        <p><strong>Visuel :</strong> Un sombre donjon de pierre recouverte de mousse. Les murs sont de lourds blocs rocheux et les murs cassables arborent des fissures de pierre grises et noires très réalistes.</p>
+        <p><strong>Génération :</strong> Haute densité. 30% des cases sont des Murs. Aucun trou noir, ni téléporteur.</p>
+        <p><strong>Stratégie :</strong> La guerre des tranchées. La carte est transformée en un réseau de couloirs étroits et de goulots d'étranglement. Un bouclier bien placé dans un couloir peut bloquer l'expansion entière d'un adversaire.</p>
+      </div>
+
+      <div class="biome-desc">
+        <h4>Biome : Archipelago (Black Hole Islands)</h4>
+        <p><strong>Visuel :</strong> Une roche volcanique claire constellée de mini-cratères. Les murs sont de magnifiques stèles en Jade vert, se brisant avec des éclats cristallins blancs éblouissants.</p>
+        <p><strong>Génération :</strong> Terrain fracturé. L'algorithme génère 25% de Trous Noirs regroupés de manière organique (algorithme de random walk) pour former des crevasses et des îles, séparées par de petits ponts. Seulement 5% de Murs.</p>
+        <p><strong>Stratégie :</strong> Le jeu de la corde raide. Vous devez vous étendre sur des passages très fins. Une explosion mal calculée enverra toutes vos ressources se perdre dans le vide.</p>
+      </div>
+
+      <div class="biome-desc">
+        <h4>Biome : Quantum Nexus (Heavy Teleportation)</h4>
+        <p><strong>Visuel :</strong> Le vide sidéral. Le sol est un dégradé spatial noir/violet profond parsemé d'étoiles scintillantes de différentes tailles.</p>
+        <p><strong>Génération :</strong> Le chaos quantique. Aucun Mur, Aucun Trou noir. À la place, la carte génère systématiquement 8 Téléporteurs (4 paires).</p>
+        <p><strong>Stratégie :</strong> L'anticipation totale. Une réaction en chaîne qui commence en bas à gauche peut être aspirée par un téléporteur et ressortir derrière vos lignes ennemies. Nulle part n'est sûr.</p>
+      </div>
+
+      <div class="biome-desc">
+        <h4>Biome : Contaminated Wasteland (Turn 1 Tumor)</h4>
+        <p><strong>Visuel :</strong> Des terres désolées faites de sable chaud et de boue. Les remparts sont de vieilles barricades en bois qui volent en éclats en montrant des fissures de bois brisé.</p>
+        <p><strong>Génération :</strong> Zone sinistrée. 10% de Murs et 5% de Trous Noirs. <strong>Règle Spéciale (Urgence absolue) :</strong> La Tumeur Végétale n'attend pas de tour aléatoire. Le code la force à naître obligatoirement au centre exact de la grille dès le Tour 1.</p>
+        <p><strong>Stratégie :</strong> Une course contre la montre. Les joueurs commencent sur les bords et doivent se battre tout en évitant ou en repoussant la menace centrale qui va inexorablement ronger le plateau de l'intérieur.</p>
+      </div>
+
+      <div class="biome-desc">
+        <h4>Biome : Frozen Glacier (Les Cases Glissantes)</h4>
+        <p><strong>Visuel :</strong> De la glace lisse et translucide avec des murs en blocs d'icebergs aux arêtes tranchantes. Les cases de glace arborent des rayures de patins très brillantes.</p>
+        <p><strong>Génération :</strong> 20% de la carte est recouverte de "Glace" glissante.</p>
+        <p><strong>Stratégie :</strong> Lorsqu'une case explose et envoie un point sur une case de Glace, le point ne s'y arrête pas. Il "glisse" dans la même direction jusqu'à ce qu'il rencontre une case normale, un Mur, ou une case contenant déjà des points. Idéal pour les snipers de longue distance !</p>
+      </div>
+
+      <div class="biome-desc">
+        <h4>Biome : Industrial Foundry (Les Tapis Roulants)</h4>
+        <p><strong>Visuel :</strong> Plaques de métal sombre, grilles industrielles, et murs blindés en acier. Les tapis roulants comportent des chevrons peints en jaune vif indiquant la direction.</p>
+        <p><strong>Génération :</strong> 15% des cases sont des tapis roulants orientés vers le Haut, Bas, Gauche ou Droite.</p>
+        <p><strong>Stratégie :</strong> À la fin de chaque tour complet, tout point situé sur un tapis roulant est déplacé d'une case dans la direction indiquée. Planifiez à l'avance pour éviter d'être transporté droit dans un mur ou chez l'ennemi.</p>
+      </div>
+
+      <div class="biome-desc">
+        <h4>Biome : Crystal Cavern (Les Murs Réflecteurs)</h4>
+        <p><strong>Visuel :</strong> Sol géométrique en améthyste polie. Les murs sont de grands cristaux prismatiques et lumineux.</p>
+        <p><strong>Génération :</strong> 20% de Murs, mais ce sont tous des "Miroirs".</p>
+        <p><strong>Stratégie :</strong> Lorsqu'une explosion projette un point contre ce mur, au lieu d'être détruit, le point rebondit et retourne sur la case d'où il vient. Créez des "retours de flamme" dévastateurs pour doubler la puissance de vos explosions.</p>
+      </div>
+
+      <div class="biome-desc">
+        <h4>Biome : Volcanic Crater (Les Geysers de Magma)</h4>
+        <p><strong>Visuel :</strong> Roche volcanique noire avec des veines de lave. Les Geysers sont des mares de lave bouillonnante et les murs d'obsidienne abritent des fissures incandescentes.</p>
+        <p><strong>Génération :</strong> Aucun Trou Noir, mais 10% de Geysers magmatiques.</p>
+        <p><strong>Stratégie :</strong> Tous les 5 tours, chaque Geyser gagne automatiquement 1 point neutre. S'il atteint 4 points, il explose et inonde les cases adjacentes, cassant vos lignes de ravitaillement.</p>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<div id="host-tutorial-overlay" class="hidden">
+  <div class="rulebook-modal">
+    <div class="rulebook-header">
+      <h2>📡 Guide : Héberger une partie</h2>
+      <button class="close-rulebook" onclick="closeHostTutorial()">×</button>
+    </div>
+    <div class="rulebook-content">
+      <p class="rulebook-intro"><strong>Comment devenir le Serveur :</strong> En mode "En Ligne", l'un des joueurs doit héberger la partie sur son ordinateur pour que les autres puissent le rejoindre. Voici la marche à suivre pas à pas.</p>
+      
+      <h3>Étape 0 : Les Prérequis (À faire une seule fois)</h3>
+      <ul>
+        <li>L'hôte doit avoir téléchargé et installé le logiciel <strong>Node.js</strong> sur son ordinateur (c'est gratuit et trouvable sur internet).</li>
+        <li>Ouvrez le dossier du jeu dans <strong>VS Code</strong>.</li>
+        <li>Dans VS Code, ouvrez le terminal intégré (cliquez tout en haut sur <strong>Terminal</strong> > <strong>Nouveau terminal</strong>).</li>
+        <li>Dans ce terminal, tapez la commande : <strong><code>npm install</code></strong> puis appuyez sur Entrée. Cela va télécharger et préparer le moteur du serveur.</li>
+      </ul>
+
+      <h3>Étape 1 : Allumer le Serveur (Le Cerveau)</h3>
+      <ul>
+        <li>Toujours dans votre terminal (Terminal 1), tapez la commande : <strong><code>node server.js</code></strong></li>
+        <li>Appuyez sur Entrée. Le message <em>"🚀 Serveur activé !"</em> doit s'afficher. Ne fermez plus ce terminal.</li>
+      </ul>
+
+      <h3>Étape 2 : Créer le lien public (Le Pont)</h3>
+      <ul>
+        <li>Dans VS Code, ouvrez un <strong>deuxième terminal</strong> (en cliquant sur le petit <strong>+</strong>).</li>
+        <li>Tapez la commande : <strong><code>npx localtunnel --port 3000</code></strong></li>
+        <li>Copiez le lien internet généré (qui ressemble à <em>https://un-nom.loca.lt</em>). C'est le lien public de votre jeu !</li>
+      </ul>
+
+      <h3>Étape 3 : Récupérer le mot de passe de sécurité</h3>
+      <ul>
+        <li>Localtunnel sécurise votre lien. Allez sur le lien suivant depuis votre navigateur : <strong><code>https://loca.lt/mytunnelpassword</code></strong></li>
+        <li>Copiez la suite de chiffres affichée à l'écran (c'est votre adresse IP publique).</li>
+      </ul>
+
+      <h3>Étape 4 : Inviter vos amis</h3>
+      <ul>
+        <li>Envoyez le <strong>lien du jeu</strong> et le <strong>mot de passe</strong> à vos amis (sur Discord, SMS, etc.).</li>
+        <li>Dans le jeu de votre côté, créez une salle en laissant la case "Code du salon" vide et donnez-leur le code généré en haut de l'écran.</li>
+        <li><strong>⚠️ Règle d'or :</strong> Ne fermez jamais VS Code ni vos deux terminaux pendant toute la durée de la partie !</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="color-wars.js"></script>
+</body>
+</html>

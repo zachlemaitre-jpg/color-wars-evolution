@@ -1,0 +1,424 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Outfit:wght@300;400;600;800&display=swap');
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* ─── Variables ─────────────────────────────────────────────────────────────── */
+:root {
+  --p1: #e63946; --p1-light: #ff6b74;
+  --p2: #2196f3; --p2-light: #64b5f6;
+  --p3: #2ecc71; --p3-light: #6ee7a0;
+  --p4: #f4e04d; --p4-light: #fff176;
+  --bg: #0f0f1a; --panel: #1a1a2e; --text: #e8e8f0; --muted: #888899;
+  --gold: #ffd60a; --shield: #a8dadc; --bomb: #f77f00; --wall: #7a4a00;
+  --ice: #8cd2ff; --sismic: #ff5722;
+}
+
+/* ─── Base ───────────────────────────────────────────────────────────────────── */
+body {
+  background-color: var(--bg); color: var(--text); font-family: 'Outfit', sans-serif;
+  min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding: 20px; overflow-x: hidden; transition: background-color 0.8s ease-in-out;
+}
+body.turn-p1 { background-color: #2b1115; } body.turn-p2 { background-color: #111a2b; }
+body.turn-p3 { background-color: #112b18; } body.turn-p4 { background-color: #2b2811; }
+
+h1 {
+  font-family: 'Space Mono', monospace; font-size: clamp(1.2rem, 3vw, 2rem); letter-spacing: 0.15em; text-transform: uppercase;
+  background: linear-gradient(135deg, var(--p1-light), var(--p2-light)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; margin-bottom: 4px;
+}
+.subtitle { font-size: 0.75rem; letter-spacing: 0.3em; color: var(--muted); text-transform: uppercase; margin-bottom: 16px; }
+
+/* ─── Layout ─────────────────────────────────────────────────────────────────── */
+.game-container { display: flex; flex-direction: column; gap: 10px; align-items: center; width: 100%; max-width: 1100px; }
+.players-row { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; width: 100%; }
+.player-card-wrap { flex: 1; min-width: 160px; max-width: 240px; }
+.controls-row { display: flex; gap: 12px; justify-content: center; align-items: flex-start; flex-wrap: wrap; width: 100%; }
+.controls-block { display: flex; flex-direction: column; gap: 8px; min-width: 160px; }
+
+/* ─── Player cards ───────────────────────────────────────────────────────────── */
+.player-card {
+  background: var(--panel); border-radius: 14px; padding: 14px; border: 2px solid transparent; transition: border-color 0.3s, transform 0.3s; position: relative; overflow: hidden;
+}
+.player-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; border-radius: 14px 14px 0 0; }
+.player-card.p1::before { background: var(--p1); } .player-card.p2::before { background: var(--p2); }
+.player-card.p3::before { background: var(--p3); } .player-card.p4::before { background: var(--p4); }
+.player-card.active { border-color: rgba(255,255,255,0.15); }
+.player-card.p1.active { border-color: var(--p1); } .player-card.p2.active { border-color: var(--p2); }
+.player-card.p3.active { border-color: var(--p3); } .player-card.p4.active { border-color: var(--p4); }
+
+.player-name { font-weight: 800; font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 6px; }
+.p1 .player-name { color: var(--p1-light); } .p2 .player-name { color: var(--p2-light); }
+.p3 .player-name { color: var(--p3-light); } .p4 .player-name { color: var(--p4-light); }
+.player-stat { display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--muted); margin-bottom: 3px; }
+.player-stat span:last-child { color: var(--text); font-weight: 600; }
+.turn-indicator { font-size: 0.65rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--muted); margin-top: 6px; }
+.player-card.active .turn-indicator { color: var(--gold); }
+.first-badge { display: none; margin-top: 6px; font-size: 0.6rem; font-weight: 600; letter-spacing: 0.1em; color: var(--gold); background: rgba(255,214,10,0.1); border: 1px solid rgba(255,214,10,0.25); border-radius: 6px; padding: 3px 7px; text-align: center; }
+.first-badge.show { display: block; }
+
+/* Dead & Frozen */
+.player-card.dead { opacity: 0.4; filter: grayscale(80%); border-color: transparent !important; }
+.player-card.dead::before { background: var(--muted) !important; }
+.player-card.dead .turn-indicator { color: #e63946 !important; font-weight: 800; font-size: 0.8rem; letter-spacing: 0.15em; }
+.player-card.frozen-solid { opacity: 0.7; border-color: rgba(140, 210, 255, 0.4) !important; }
+.player-card.frozen-solid .turn-indicator { color: var(--ice) !important; font-weight: 800; font-size: 0.8rem; letter-spacing: 0.15em; }
+
+/* ─── Actions (Fusion/Quit) ──────────────────────────────────────────────────── */
+.card-actions { display: flex; gap: 4px; margin-top: 6px; }
+.action-btn { flex: 1; padding: 5px 0; font-size: 7px; font-family: 'Space Mono', monospace; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 700; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: var(--text); border-radius: 6px; cursor: pointer; transition: all 0.2s; }
+.action-btn:hover:not(:disabled) { background: rgba(255,255,255,0.15); border-color: rgba(255,255,255,0.3); }
+.action-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+.action-btn.quit-btn:hover:not(:disabled) { background: rgba(230, 57, 70, 0.2); border-color: #e63946; color: #ff6b74; }
+
+/* ─── Legend & Buttons ───────────────────────────────────────────────────────── */
+.legend-card { background: var(--panel); border-radius: 14px; padding: 12px; }
+.legend-title { font-size: 0.6rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; }
+.legend-item { display: flex; align-items: center; gap: 7px; font-size: 0.7rem; margin-bottom: 6px; color: var(--text); }
+.legend-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+.legend-wall { width: 12px; height: 12px; border-radius: 3px; flex-shrink: 0; background: #b5572a; border: 1px solid #e8845a; }
+.pip { display: inline-block; flex-shrink: 0; }
+.pip.shield { width: 13px; height: 13px; background: var(--shield); border-radius: 0; clip-path: polygon(50% 0%, 100% 20%, 100% 60%, 50% 100%, 0% 60%, 0% 20%); }
+
+.controls { display: flex; flex-direction: column; gap: 8px; }
+button { background: var(--panel); border: 1px solid rgba(255,255,255,0.1); color: var(--text); font-family: 'Outfit', sans-serif; font-size: 0.75rem; font-weight: 600; letter-spacing: 0.05em; padding: 9px 12px; border-radius: 10px; cursor: pointer; transition: all 0.2s; text-transform: uppercase; }
+button:hover { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.25); }
+button.primary { background: linear-gradient(135deg, var(--p1), var(--p2)); border: none; color: #fff; font-weight: 700; }
+button.primary:hover { opacity: 0.9; transform: translateY(-1px); }
+
+/* ─── Board & Cells ──────────────────────────────────────────────────────────── */
+.board-wrap { position: relative; width: 100%; max-width: 100%; overflow-x: auto; padding-bottom: 10px; }
+#board { display: grid; grid-template-columns: repeat(var(--cols, 10), 1fr); gap: 3px; background: #0a0a14; padding: 10px; border-radius: 16px; border: 1px solid rgba(255,255,255,0.06); box-shadow: 0 0 60px rgba(0,0,0,0.5); width: fit-content; margin: 0 auto; }
+.cell { width: 54px; height: 54px; border-radius: 8px; display: flex; align-items: center; justify-content: center; cursor: pointer; position: relative; transition: background 0.12s, transform 0.1s; user-select: none; overflow: visible; }
+.cell:nth-child(odd) { background: #1c1c2e; } .cell:nth-child(even) { background: #16162a; }
+.cell.row-even:nth-child(odd) { background: #16162a; } .cell.row-even:nth-child(even) { background: #1c1c2e; }
+
+.cell.free-hint { cursor: pointer; box-shadow: inset 0 0 0 1px rgba(255,214,10,0.3); }
+.cell.free-hint:hover { background: rgba(255,214,10,0.08) !important; transform: scale(1.05); z-index: 2; }
+.cell.can-play:hover { background: rgba(255,255,255,0.09) !important; transform: scale(1.05); z-index: 2; }
+.cell.no-play { cursor: not-allowed; }
+
+/* Base Walls */
+.cell.wall { background: repeating-linear-gradient(90deg, transparent 0, transparent 10px, rgba(0,0,0,0.08) 10px, rgba(0,0,0,0.08) 11px), repeating-linear-gradient(0deg, transparent 0, transparent 10px, rgba(0,0,0,0.08) 10px, rgba(0,0,0,0.08) 11px), linear-gradient(160deg, #e8845a 0%, #b5572a 30%, #d4724a 50%, #8c3d1a 70%, #c06035 100%) !important; cursor: not-allowed; box-shadow: inset 0 2px 3px rgba(255,180,130,0.45), inset 0 -2px 3px rgba(0,0,0,0.35); position: relative; }
+.cell.wall::before { content: ''; position: absolute; top: 3px; left: 6px; right: 40%; height: 3px; border-radius: 2px; background: rgba(255,210,180,0.35); pointer-events: none; }
+.cell.wall-inner { position: absolute; inset: 0; pointer-events: none; }
+.cell.wall-breakable { background: repeating-linear-gradient(90deg, transparent 0, transparent 10px, rgba(0,0,0,0.08) 10px, rgba(0,0,0,0.08) 11px), repeating-linear-gradient(0deg, transparent 0, transparent 10px, rgba(0,0,0,0.08) 10px, rgba(0,0,0,0.08) 11px), linear-gradient(160deg, #c8644a 0%, #8c3d1a 30%, #b05235 50%, #6a2d0e 70%, #9a4525 100%) !important; cursor: not-allowed; box-shadow: inset 0 2px 3px rgba(200,140,100,0.35), inset 0 -2px 3px rgba(0,0,0,0.4); position: relative; }
+.cell.wall-breakable::before { content: ''; position: absolute; top: 3px; left: 6px; right: 40%; height: 2px; border-radius: 2px; background: rgba(255,190,150,0.25); pointer-events: none; }
+.cell.wall-breakable::after { content: ''; position: absolute; inset: 0; pointer-events: none; border-radius: 8px; opacity: 0; transition: opacity 0.25s; }
+.cell.wall-breakable[data-hp="5"]::after { opacity: 0; }
+.cell.wall-breakable[data-hp="4"]::after { opacity: 1; background-image: linear-gradient(28deg, transparent 42%, rgba(0,0,0,0.85) 43%, rgba(255,180,100,0.2) 44%, transparent 45%); }
+.cell.wall-breakable[data-hp="3"]::after { opacity: 1; background-image: linear-gradient(28deg, transparent 42%, rgba(0,0,0,0.9) 43%, rgba(255,180,100,0.25) 44%, transparent 45%), linear-gradient(155deg, transparent 35%, rgba(0,0,0,0.8) 36%, rgba(255,180,100,0.2) 37%, transparent 38%); }
+.cell.wall-breakable[data-hp="2"]::after { opacity: 1; background-image: linear-gradient(28deg, transparent 42%, rgba(0,0,0,0.95) 43%, rgba(255,180,100,0.3) 44%, transparent 45%), linear-gradient(155deg, transparent 35%, rgba(0,0,0,0.9) 36%, rgba(255,180,100,0.25) 37%, transparent 38%), linear-gradient(75deg, transparent 55%, rgba(0,0,0,0.85) 56%, rgba(255,180,100,0.2) 57%, transparent 58%); }
+.cell.wall-breakable[data-hp="1"]::after { opacity: 1; background-image: linear-gradient(28deg, transparent 42%, rgba(0,0,0,1) 43%, rgba(255,180,100,0.35) 44%, transparent 45%), linear-gradient(155deg, transparent 35%, rgba(0,0,0,0.95) 36%, rgba(255,180,100,0.3) 37%, transparent 38%), linear-gradient(75deg, transparent 55%, rgba(0,0,0,0.9) 56%, rgba(255,180,100,0.25) 57%, transparent 58%), linear-gradient(110deg, transparent 25%, rgba(0,0,0,0.85) 26%, rgba(255,180,100,0.2) 27%, transparent 28%); }
+.wall-hp { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-family: 'Space Mono', monospace; font-size: 11px; font-weight: 700; color: rgba(255,220,180,0.9); text-shadow: 0 1px 3px rgba(0,0,0,0.7); pointer-events: none; line-height: 1; }
+
+/* Special base */
+.cell.blackhole { background: #050508 !important; cursor: default; }
+.cell.bh-inner { width: 28px; height: 28px; border-radius: 50%; border: 2px solid #2a2a40; background: radial-gradient(circle at 40% 40%, #1a1a2e 30%, #000 100%); }
+.cell.teleporter-a, .cell.teleporter-b { background: rgba(100,60,180,0.25) !important; cursor: default; }
+.tele-label { font-size: 12px; color: #c77dff; font-weight: 700; }
+
+/* ─── Dots ───────────────────────────────────────────────────────────────────── */
+.dots-container { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: 2px; flex-wrap: wrap; padding: 5px; pointer-events: none; overflow: visible; z-index: 5; }
+.dot { width: 11px; height: 11px; border-radius: 50%; flex-shrink: 0; }
+.dot.p1 { background: var(--p1); box-shadow: 0 0 5px var(--p1); } .dot.p2 { background: var(--p2); box-shadow: 0 0 5px var(--p2); }
+.dot.p3 { background: var(--p3); box-shadow: 0 0 5px var(--p3); } .dot.p4 { background: var(--p4); box-shadow: 0 0 5px var(--p4); }
+.dot.shield-p1, .dot.shield-p2, .dot.shield-p3, .dot.shield-p4 { background: transparent; border-radius: 0; box-shadow: none; width: 11px; height: 11px; clip-path: polygon(50% 0%, 100% 20%, 100% 60%, 50% 100%, 0% 60%, 0% 20%); position: relative; }
+.dot.shield-p1 { background: var(--p1); filter: brightness(1.6) drop-shadow(0 0 3px var(--p1)); }
+.dot.shield-p2 { background: var(--p2); filter: brightness(1.6) drop-shadow(0 0 3px var(--p2)); }
+.dot.shield-p3 { background: var(--p3); filter: brightness(1.6) drop-shadow(0 0 3px var(--p3)); }
+.dot.shield-p4 { background: var(--p4); filter: brightness(1.6) drop-shadow(0 0 3px var(--p4)); }
+.dot.bomb { background: transparent; box-shadow: none; animation: none; width: 11px; height: 11px; border-radius: 0; flex-shrink: 0; position: relative; }
+.dot.bomb svg { display: block; width: 11px; height: 11px; }
+@keyframes bombFuse { from { opacity: 1; } to { opacity: 0.3; } }
+.count-badge { position: absolute; bottom: 4px; right: 5px; font-family: 'Space Mono', monospace; font-size: 9px; font-weight: 700; opacity: 0.7; pointer-events: none; }
+.count-badge.p1 { color: var(--p1-light); } .count-badge.p2 { color: var(--p2-light); }
+.count-badge.p3 { color: var(--p3-light); } .count-badge.p4 { color: var(--p4-light); }
+
+.flying-dot { position: fixed; width: 11px; height: 11px; border-radius: 50%; pointer-events: none; z-index: 9999; }
+.flying-dot.p1 { background: var(--p1); box-shadow: 0 0 8px var(--p1); } .flying-dot.p2 { background: var(--p2); box-shadow: 0 0 8px var(--p2); }
+.flying-dot.p3 { background: var(--p3); box-shadow: 0 0 8px var(--p3); } .flying-dot.p4 { background: var(--p4); box-shadow: 0 0 8px var(--p4); }
+
+/* ─── Animations ─────────────────────────────────────────────────────────────── */
+.cell.exploding { animation: explodePulse 0.35s ease-out; }
+@keyframes explodePulse { 0% { transform: scale(1); } 40% { transform: scale(1.35); background: rgba(255,240,100,0.3) !important; } 100% { transform: scale(1); } }
+@keyframes suckIn { 0% { transform: scale(1) rotate(0deg); opacity: 1; } 40% { transform: scale(0.7) rotate(180deg); opacity: 0.8; } 80% { transform: scale(0.25) rotate(540deg); opacity: 0.4; } 100% { transform: scale(0) rotate(720deg); opacity: 0; } }
+.flying-dot.sucked { animation: suckIn 0.55s ease-in forwards; }
+@keyframes teleFlash { 0% { box-shadow: inset 0 0 0 2px #c77dff, 0 0 16px #c77dff; } 60% { box-shadow: inset 0 0 0 6px #c77dff, 0 0 32px #c77dff; } 100% { box-shadow: none; } }
+.cell.tele-flash { animation: teleFlash 0.45s ease-out; }
+
+/* Sismic Zone */
+@keyframes sismicTremble { 0%, 100% { transform: translate(0, 0) rotate(0deg); } 10%, 30%, 50%, 70%, 90% { transform: translate(-2px, 1px) rotate(-1deg); } 20%, 40%, 60%, 80% { transform: translate(2px, -1px) rotate(1deg); } }
+@keyframes sismicFall { 0% { transform: translateY(0) scale(1) rotate(0deg); opacity: 1; filter: brightness(1); } 100% { transform: translateY(60px) scale(0.3) rotate(15deg); opacity: 0; filter: brightness(0.2); } }
+.cell.sismic-trembling { animation: sismicTremble 0.6s ease-in-out infinite; z-index: 10; }
+.cell.sismic-falling { animation: sismicFall 0.7s cubic-bezier(0.55, 0.085, 0.68, 0.53) forwards; pointer-events: none; z-index: 9; }
+.cell.sismic-destroyed { visibility: hidden; pointer-events: none; }
+
+/* Map Info */
+.status-bar { margin-top: 12px; font-family: 'Space Mono', monospace; font-size: 0.75rem; color: var(--muted); text-align: center; letter-spacing: 0.05em; min-height: 20px; }
+.status-bar.warn { color: #ff9f43; } .status-bar.info { color: var(--gold); }
+.status-bar.sismic-alert { color: var(--sismic); font-weight: bold; animation: sismicTremble 0.3s infinite; }
+.map-info { font-size: 0.6rem; color: var(--muted); letter-spacing: 0.12em; text-transform: uppercase; text-align: center; margin-top: 5px; }
+
+/* Powerups */
+.card-powerups { display: flex; gap: 4px; margin-top: 8px; flex-wrap: wrap; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.07); }
+.card-pu-btn { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 6px 3px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.04); cursor: pointer; transition: background 0.15s, border-color 0.15s, transform 0.1s; font-family: 'Space Mono', monospace; font-size: 7px; color: var(--muted); user-select: none; }
+.card-pu-btn:hover:not(.depleted) { background: rgba(255,255,255,0.09); border-color: rgba(255,255,255,0.22); }
+.card-pu-btn.selected { border-color: var(--gold); background: rgba(255,214,10,0.1); color: var(--gold); transform: translateY(-1px); }
+.card-pu-btn.depleted { opacity: 0.3; cursor: not-allowed; }
+.card-pu-label { font-size: 6px; letter-spacing: 0.05em; text-transform: uppercase; }
+.card-pu-stock { font-weight: 700; font-size: 8px; }
+.pu-pip-normal { width: 9px; height: 9px; border-radius: 50%; background: var(--text); }
+.pu-pip-shield { width: 9px; height: 9px; clip-path: polygon(50% 0%, 100% 20%, 100% 60%, 50% 100%, 0% 60%, 0% 20%); }
+.p1 .pu-pip-shield { background: var(--p1); filter: brightness(1.6); } .p2 .pu-pip-shield { background: var(--p2); filter: brightness(1.6); }
+.p3 .pu-pip-shield { background: var(--p3); filter: brightness(1.6); } .p4 .pu-pip-shield { background: var(--p4); filter: brightness(1.6); }
+
+/* Ice Bloc */
+.ice-overlay { position: absolute; inset: 0; background: rgba(140, 210, 255, 0.4); border: 2px solid rgba(200, 240, 255, 0.8); border-radius: 8px; backdrop-filter: blur(2px); box-shadow: inset 0 0 10px rgba(255, 255, 255, 0.8); z-index: 15; pointer-events: none; }
+.ice-turn-counter { position: absolute; top: 2px; left: 3px; color: #fff; font-family: 'Space Mono', monospace; font-size: 9px; font-weight: 800; text-shadow: 0px 1px 2px rgba(0, 0, 100, 0.8); z-index: 16; }
+@keyframes freezeForm { 0% { opacity: 0; transform: scale(1.1); filter: brightness(2); } 100% { opacity: 1; transform: scale(1); filter: brightness(1); } }
+.just-frozen .ice-overlay { animation: freezeForm 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) forwards; }
+@keyframes iceMelt { 0% { opacity: 1; filter: brightness(1.5); } 100% { opacity: 0; filter: brightness(2); transform: translateY(10px) scale(0.9); } }
+.ice-melt-anim { position: absolute; inset: 0; z-index: 25; pointer-events: none; background: rgba(150, 220, 255, 0.6); border-radius: 8px; animation: iceMelt 0.6s forwards; }
+
+/* Pregame Toggles */
+.toggles-container { display: flex; flex-direction: column; gap: 16px; width: 100%; max-width: 500px; }
+.toggle-group { background: rgba(0, 0, 0, 0.2); border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; align-items: center; }
+.toggle-group .pregame-label { margin-bottom: 12px; color: var(--gold); }
+.toggle-row { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+.lightning-toggle { display: flex; align-items: center; gap: 10px; background: var(--panel); border-radius: 10px; padding: 9px 12px; cursor: pointer; border: 1px solid rgba(255,255,255,0.1); transition: border-color 0.2s; user-select: none; }
+.lightning-toggle:hover { border-color: rgba(255,255,255,0.25); }
+.lightning-toggle.active { border-color: #ffe066; background: rgba(255,224,102,0.07); }
+.lightning-toggle-icon { font-size: 14px; line-height: 1; }
+.lightning-toggle-label { font-size: 0.7rem; font-weight: 600; color: var(--text); flex: 1; }
+.lightning-toggle.active .lightning-toggle-label { color: #ffe066; }
+.lightning-toggle-pill { width: 26px; height: 14px; border-radius: 8px; background: rgba(255,255,255,0.12); position: relative; transition: background 0.2s; }
+.lightning-toggle.active .lightning-toggle-pill { background: #ffe066; }
+.lightning-toggle-pill::after { content: ''; position: absolute; top: 2px; left: 2px; width: 10px; height: 10px; border-radius: 50%; background: #fff; transition: left 0.2s; }
+.lightning-toggle.active .lightning-toggle-pill::after { left: 14px; }
+
+#pregame-overgrowth.active { border-color: var(--p3-light); background: rgba(110, 231, 160, 0.07); } #pregame-overgrowth.active .lightning-toggle-label { color: var(--p3-light); } #pregame-overgrowth.active .lightning-toggle-pill { background: var(--p3-light); }
+#pregame-blackholes.active { border-color: #a0a0b0; background: rgba(160, 160, 176, 0.07); } #pregame-blackholes.active .lightning-toggle-label { color: #a0a0b0; } #pregame-blackholes.active .lightning-toggle-pill { background: #a0a0b0; }
+#pregame-walls.active { border-color: #e8845a; background: rgba(232, 132, 90, 0.07); } #pregame-walls.active .lightning-toggle-label { color: #e8845a; } #pregame-walls.active .lightning-toggle-pill { background: #e8845a; }
+#pregame-teleporters.active { border-color: #c77dff; background: rgba(199, 125, 255, 0.07); } #pregame-teleporters.active .lightning-toggle-label { color: #c77dff; } #pregame-teleporters.active .lightning-toggle-pill { background: #c77dff; }
+#pregame-shields.active { border-color: var(--shield); background: rgba(168, 218, 220, 0.07); } #pregame-shields.active .lightning-toggle-label { color: var(--shield); } #pregame-shields.active .lightning-toggle-pill { background: var(--shield); }
+#pregame-bombs.active { border-color: var(--bomb); background: rgba(247, 127, 0, 0.07); } #pregame-bombs.active .lightning-toggle-label { color: var(--bomb); } #pregame-bombs.active .lightning-toggle-pill { background: var(--bomb); }
+#pregame-ice.active { border-color: var(--ice); background: rgba(140, 210, 255, 0.07); } #pregame-ice.active .lightning-toggle-label { color: var(--ice); } #pregame-ice.active .lightning-toggle-pill { background: var(--ice); }
+#pregame-sismic.active { border-color: var(--sismic); background: rgba(255, 87, 34, 0.07); } #pregame-sismic.active .lightning-toggle-label { color: var(--sismic); } #pregame-sismic.active .lightning-toggle-pill { background: var(--sismic); }
+
+/* Lightning */
+.lightning-cell-canvas { position: absolute; inset: 0; border-radius: 8px; pointer-events: none; z-index: 50; overflow: hidden; }
+@keyframes lightningFlash { 0% { box-shadow: none; } 15% { box-shadow: inset 0 0 0 2px #ffe84d, 0 0 14px #ffe84d; background: rgba(255,240,80,0.55) !important; transform: scale(1.12); } 45% { box-shadow: inset 0 0 0 1px #ffcc00, 0 0 8px #ffcc00; background: rgba(255,220,60,0.3) !important; transform: scale(1.05); } 70% { box-shadow: inset 0 0 0 1px #ffe84d, 0 0 5px #ffe84d; background: rgba(255,240,80,0.15) !important; } 100% { box-shadow: none; background: transparent !important; transform: scale(1); } }
+.cell.lightning-hit { animation: lightningFlash 1.1s ease-out forwards; }
+.lightning-announce { position: fixed; top: 18px; left: 50%; transform: translateX(-50%); background: #1a1500; border: 1.5px solid #ffe066; color: #ffe066; font-family: 'Space Mono', monospace; font-size: 0.8rem; letter-spacing: 0.12em; text-transform: uppercase; padding: 8px 20px; border-radius: 10px; z-index: 10001; pointer-events: none; white-space: nowrap; animation: announcePop 2s ease-out forwards; }
+@keyframes announcePop { 0% { opacity: 0; transform: translateX(-50%) translateY(-10px); } 15% { opacity: 1; transform: translateX(-50%) translateY(0); } 75% { opacity: 1; } 100% { opacity: 0; transform: translateX(-50%) translateY(-6px); } }
+
+/* ─── Winner & Fusion overlays ───────────────────────────────────────────────── */
+#winner-overlay, #fusion-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 300; align-items: center; justify-content: center; flex-direction: column; gap: 20px; backdrop-filter: blur(4px); }
+#winner-overlay.show, #fusion-overlay:not(.hidden) { display: flex; }
+#winner-overlay h2 { font-family: 'Space Mono', monospace; font-size: clamp(2rem,6vw,4rem); text-transform: uppercase; letter-spacing: 0.1em; }
+#winner-overlay.p1-wins h2 { color: var(--p1-light); } #winner-overlay.p2-wins h2 { color: var(--p2-light); }
+#winner-overlay.p3-wins h2 { color: var(--p3-light); } #winner-overlay.p4-wins h2 { color: var(--p4-light); }
+
+.fusion-modal { background: var(--panel); border: 1px solid rgba(255,255,255,0.1); padding: 20px; border-radius: 12px; text-align: center; max-width: 320px; width: 90%; }
+.fusion-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.fusion-header h3 { font-family: 'Space Mono', monospace; margin: 0; color: var(--gold); text-transform: uppercase; }
+.close-fusion { background: transparent; border: none; color: var(--muted); font-size: 1.5rem; cursor: pointer; padding: 0; line-height: 1; border-radius: 4px; }
+.close-fusion:hover { color: #fff; background: rgba(255,255,255,0.1); }
+.fusion-modal p { font-size: 0.8rem; color: var(--text); margin-bottom: 15px; line-height: 1.4; }
+.fusion-players { display: flex; flex-direction: column; gap: 10px; }
+.fusion-target-btn { border: none; padding: 12px; border-radius: 8px; color: #fff; font-family: 'Space Mono', monospace; font-weight: bold; text-transform: uppercase; cursor: pointer; transition: transform 0.1s, filter 0.2s; }
+.fusion-target-btn:hover { filter: brightness(1.2); transform: scale(1.02); }
+
+/* ─── Pre-game menu ──────────────────────────────────────────────────────────── */
+#pregame-overlay { position: fixed; inset: 0; z-index: 200; background: var(--bg); display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 24px; overflow-y: auto; padding: 40px 20px; }
+#pregame-overlay.hidden { display: none; }
+.pregame-title { font-family: 'Space Mono', monospace; font-size: clamp(2rem, 6vw, 3rem); letter-spacing: 0.15em; text-transform: uppercase; background: linear-gradient(135deg, var(--p1-light), var(--p2-light), var(--p3-light), var(--p4-light)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; flex-shrink: 0; }
+.pregame-subtitle { font-size: 0.75rem; letter-spacing: 0.3em; color: var(--muted); text-transform: uppercase; flex-shrink: 0; }
+.pregame-section { display: flex; flex-direction: column; align-items: center; gap: 12px; flex-shrink: 0; }
+.pregame-label { font-size: 0.65rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--muted); text-align: center; }
+.player-count-btns { display: flex; gap: 14px; }
+.pc-btn { width: 80px; height: 80px; border-radius: 14px; background: var(--panel); border: 2px solid rgba(255,255,255,0.1); color: var(--text); font-family: 'Space Mono', monospace; font-size: 1.8rem; font-weight: 700; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; transition: all 0.2s; user-select: none; }
+.pc-btn .pc-sub { font-size: 0.5rem; letter-spacing: 0.1em; color: var(--muted); text-transform: uppercase; font-weight: 400; font-family: 'Outfit', sans-serif; }
+.pc-btn:hover { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.3); transform: translateY(-2px); }
+.pc-btn.selected { border-color: var(--gold); background: rgba(255,214,10,0.1); color: var(--gold); }
+.pc-btn.selected .pc-sub { color: var(--gold); }
+.player-swatches { display: flex; gap: 8px; align-items: center; justify-content: center; margin-top: 4px; }
+.swatch { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; opacity: 0.25; transition: opacity 0.2s, transform 0.2s; }
+.swatch.on { opacity: 1; transform: scale(1.2); }
+.swatch.s1 { background: var(--p1); box-shadow: 0 0 5px var(--p1); } .swatch.s2 { background: var(--p2); box-shadow: 0 0 5px var(--p2); }
+.swatch.s3 { background: var(--p3); box-shadow: 0 0 5px var(--p3); } .swatch.s4 { background: var(--p4); box-shadow: 0 0 5px var(--p4); }
+
+.pregame-main-actions { display: flex; gap: 15px; margin-top: 10px; align-items: center; justify-content: center; flex-wrap: wrap; }
+.start-btn { background: linear-gradient(135deg, var(--p1), var(--p2)); border: none; color: #fff; font-family: 'Space Mono', monospace; font-size: 1rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; padding: 14px 44px; border-radius: 12px; cursor: pointer; transition: opacity 0.2s, transform 0.15s; flex-shrink: 0; }
+.start-btn:hover { opacity: 0.9; transform: translateY(-2px); }
+.manual-btn { background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.2); color: var(--text); font-family: 'Space Mono', monospace; font-size: 0.9rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; padding: 12px 24px; border-radius: 12px; cursor: pointer; transition: all 0.2s; }
+.manual-btn:hover { background: rgba(255, 255, 255, 0.1); border-color: var(--gold); color: var(--gold); transform: translateY(-2px); }
+
+/* Biome Selector */
+.biome-selector-wrap { position: relative; width: 100%; max-width: 340px; margin: 0 auto; }
+.biome-dropdown { appearance: none; -webkit-appearance: none; width: 100%; background: var(--panel); border: 2px solid rgba(255, 255, 255, 0.1); color: var(--text); font-family: 'Space Mono', monospace; font-size: 0.8rem; font-weight: 700; padding: 12px 16px; padding-right: 40px; border-radius: 12px; cursor: pointer; transition: all 0.2s ease; outline: none; text-align: center; box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2); }
+.biome-dropdown:hover, .biome-dropdown:focus { background: rgba(255, 255, 255, 0.08); border-color: var(--gold); color: var(--gold); transform: translateY(-2px); }
+.biome-selector-wrap::after { content: '▼'; position: absolute; right: 16px; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: 0.7rem; pointer-events: none; transition: color 0.2s; }
+.biome-selector-wrap:hover::after { color: var(--gold); }
+.biome-dropdown option { background: var(--panel); color: var(--text); font-family: 'Outfit', sans-serif; font-weight: 600; padding: 10px; }
+
+
+/* ─── OVERLAYS (MANUEL DE JEU & TUTORIEL HÔTE) ────────────────────────────────────── */
+#rulebook-overlay, #host-tutorial-overlay { display: none; position: fixed; inset: 0; z-index: 1000; background: rgba(10, 10, 20, 0.85); backdrop-filter: blur(8px); align-items: center; justify-content: center; padding: 20px; }
+#rulebook-overlay:not(.hidden), #host-tutorial-overlay:not(.hidden) { display: flex !important; }
+
+.rulebook-modal { background: var(--panel); border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; width: 100%; max-width: 800px; max-height: 90vh; display: flex; flex-direction: column; box-shadow: 0 10px 40px rgba(0,0,0,0.8); overflow: hidden; }
+.rulebook-header { display: flex; justify-content: space-between; align-items: center; padding: 20px 30px; background: rgba(0,0,0,0.3); border-bottom: 1px solid rgba(255,255,255,0.05); flex-shrink: 0; }
+.rulebook-header h2 { font-family: 'Space Mono', monospace; font-size: 1.3rem; color: var(--gold); margin: 0; text-transform: uppercase; letter-spacing: 0.05em; }
+.close-rulebook { background: transparent; border: none; color: var(--muted); font-size: 2.2rem; line-height: 1; cursor: pointer; transition: color 0.2s; }
+.close-rulebook:hover { color: #e63946; }
+.rulebook-content { padding: 30px; overflow-y: auto; color: #d0d0e0; font-size: 0.95rem; line-height: 1.6; }
+.rulebook-intro { font-size: 1.05rem; color: var(--text); border-left: 3px solid var(--p2); padding-left: 15px; margin-bottom: 30px; background: rgba(33, 150, 243, 0.05); padding: 15px; border-radius: 0 8px 8px 0; }
+.rulebook-content h3 { font-family: 'Space Mono', monospace; color: var(--p2-light); margin: 30px 0 15px; border-bottom: 1px dashed rgba(255,255,255,0.1); padding-bottom: 8px; text-transform: uppercase; letter-spacing: 0.05em; font-size: 1.1rem; }
+.rulebook-content p { margin-bottom: 15px; }
+.rulebook-content ul { margin-bottom: 20px; padding-left: 20px; }
+.rulebook-content li { margin-bottom: 8px; }
+.rulebook-content li::marker { color: var(--p1-light); }
+.rulebook-content strong { color: var(--text); }
+.rulebook-content em { color: #ff9f43; font-style: normal; font-weight: bold; }
+.rulebook-content code { background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.1); padding: 3px 6px; border-radius: 6px; font-family: 'Space Mono', monospace; color: #ffe066; font-size: 0.9rem; margin: 0 4px; }
+.biome-desc { background: rgba(0,0,0,0.25); border-radius: 10px; padding: 15px 20px; margin-bottom: 15px; border: 1px solid rgba(255,255,255,0.03); }
+.biome-desc h4 { color: var(--p3-light); margin-bottom: 10px; font-family: 'Space Mono', monospace; font-size: 1rem; }
+
+/* Responsive */
+@media (max-width: 700px) {
+  .cell { width: 36px; height: 36px; border-radius: 5px; } .dot { width: 8px; height: 8px; }
+  .player-card { flex: 1; min-width: 130px; } #pregame-overlay { padding: 20px; }
+  .rulebook-content { padding: 20px; } .rulebook-header { padding: 15px 20px; } .rulebook-header h2 { font-size: 1rem; }
+}
+
+/* ─── VEGETAL TUMOR (Brambles) ───────────────────────────────────────────────── */
+.cell.contaminated { background: radial-gradient(ellipse at 40% 60%, #202b18 0%, #151c0d 70%, #0c1208 100%) !important; box-shadow: inset 0 0 14px rgba(10, 15, 5, 0.95); position: relative; transition: background 1s ease-in; }
+.cell.contaminated::after { content: ''; position: absolute; inset: 0; border-radius: 8px; background-image: repeating-linear-gradient(37deg, transparent 0px, transparent 6px, rgba(60, 70, 30, 0.05) 6px, rgba(60, 70, 30, 0.05) 7px), repeating-linear-gradient(-45deg, transparent 0px, transparent 8px, rgba(40, 50, 20, 0.08) 8px, rgba(40, 50, 20, 0.08) 9px); pointer-events: none; z-index: 0; }
+.tumor-core { position: absolute; width: 36px; height: 36px; z-index: 2; pointer-events: none; }
+.tumor-core::before { content: ''; position: absolute; inset: 4px; background: radial-gradient(ellipse at 38% 32%, #5a6b2f 0%, #3d4a1b 25%, #26300f 55%, #151a08 80%, #0b0d04 100%); border-radius: 40% 60% 70% 30% / 50% 40% 60% 50%; box-shadow: 0 3px 12px rgba(0,0,0,0.8), inset -3px -3px 8px rgba(10, 15, 5, 0.7), inset 2px 2px 6px rgba(100, 120, 60, 0.25), 0 0 12px rgba(40, 50, 20, 0.4); animation: coreSpawn 1.2s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards, tumorWobble 8s ease-in-out infinite 1.2s; }
+@keyframes tumorWobble { 0% { transform: rotate(0deg) scale(1); } 20% { transform: rotate(2deg) scale(1.02); } 45% { transform: rotate(-1.5deg) scale(0.98); } 70% { transform: rotate(3deg) scale(1.03); } 100% { transform: rotate(-0.5deg) scale(1); } }
+@keyframes coreSpawn { 0% { transform: scale(0) rotate(-40deg); opacity: 0; filter: saturate(0) blur(3px); } 60% { transform: scale(1.15) rotate(5deg); opacity: 0.9; filter: saturate(1.3) blur(0); } 80% { transform: scale(0.92) rotate(-2deg); } 100% { transform: scale(1) rotate(0deg); opacity: 1; filter: saturate(1) blur(0); } }
+.tumor-expansion-canvas { position: absolute; pointer-events: none; z-index: 10; overflow: visible; }
+@keyframes contaminateFlash { 0% { box-shadow: inset 0 0 0px rgba(50, 60, 20, 0); } 30% { box-shadow: inset 0 0 20px rgba(70, 90, 30, 0.6); } 100% { box-shadow: inset 0 0 14px rgba(10, 15, 5, 0.95); } }
+.cell.contaminated.just-infected { animation: contaminateFlash 0.8s ease-out forwards; }
+
+
+/* ─── BIOME VISUALS ─────────────────────────────────────────────────────────── */
+
+/* 1. LABYRINTH BIOME */
+#board.labyrinth .cell { background-color: #424246; background-image: radial-gradient(circle at 10% 90%, rgba(60,100,60,0.15) 0%, transparent 50%); }
+#board.labyrinth .cell:nth-child(even), #board.labyrinth .cell.row-even:nth-child(odd) { background-color: #38383c; background-image: radial-gradient(circle at 80% 20%, rgba(60,100,60,0.15) 0%, transparent 60%); }
+#board.labyrinth .cell.row-even:nth-child(even) { background-color: #424246; background-image: radial-gradient(circle at 10% 90%, rgba(60,100,60,0.15) 0%, transparent 50%); }
+#board.labyrinth .cell.wall { background: radial-gradient(circle at 15% 25%, rgba(0,0,0,0.25) 1px, transparent 2px), radial-gradient(circle at 75% 65%, rgba(255,255,255,0.08) 1px, transparent 2px), radial-gradient(circle at 45% 85%, rgba(0,0,0,0.2) 2px, transparent 3px), linear-gradient(135deg, #45454b 0%, #1a1a1e 100%) !important; box-shadow: inset 0 2px 3px rgba(255,255,255,0.1), inset 0 -2px 3px rgba(0,0,0,0.8), inset 0 0 10px rgba(0,0,0,0.6); }
+#board.labyrinth .cell.wall-breakable { background: radial-gradient(circle at 25% 15%, rgba(0,0,0,0.25) 1px, transparent 2px), radial-gradient(circle at 65% 75%, rgba(255,255,255,0.08) 1px, transparent 2px), radial-gradient(circle at 85% 35%, rgba(0,0,0,0.2) 2px, transparent 3px), linear-gradient(135deg, #55555b 0%, #2a2a2e 100%) !important; box-shadow: inset 0 2px 3px rgba(255,255,255,0.08), inset 0 -2px 3px rgba(0,0,0,0.8), inset 0 0 10px rgba(0,0,0,0.5); }
+#board.labyrinth .cell.wall-breakable[data-hp="4"]::after { opacity: 1; background-image: linear-gradient(20deg, transparent 45%, rgba(20,20,20,0.8) 46%, transparent 48%); }
+#board.labyrinth .cell.wall-breakable[data-hp="3"]::after { opacity: 1; background-image: linear-gradient(20deg, transparent 45%, rgba(20,20,20,0.8) 46%, transparent 48%), linear-gradient(-15deg, transparent 35%, rgba(20,20,20,0.85) 36%, transparent 38%); }
+#board.labyrinth .cell.wall-breakable[data-hp="2"]::after { opacity: 1; background-image: linear-gradient(20deg, transparent 45%, rgba(20,20,20,0.8) 46%, transparent 48%), linear-gradient(-15deg, transparent 35%, rgba(20,20,20,0.85) 36%, transparent 38%), linear-gradient(70deg, transparent 50%, rgba(20,20,20,0.9) 51%, transparent 53%); }
+#board.labyrinth .cell.wall-breakable[data-hp="1"]::after { opacity: 1; background-image: linear-gradient(20deg, transparent 45%, rgba(20,20,20,0.8) 46%, transparent 48%), linear-gradient(-15deg, transparent 35%, rgba(20,20,20,0.85) 36%, transparent 38%), linear-gradient(70deg, transparent 50%, rgba(20,20,20,0.9) 51%, transparent 53%), linear-gradient(150deg, transparent 20%, rgba(20,20,20,0.9) 21%, transparent 23%); }
+
+/* 2. ARCHIPELAGO BIOME */
+#board.archipelago .cell { background-color: #e8e8ed; background-image: radial-gradient(circle at 20% 20%, rgba(0,0,0,0.1) 0%, rgba(0,0,0,0.1) 10%, transparent 12%), radial-gradient(circle at 80% 60%, rgba(0,0,0,0.08) 0%, rgba(0,0,0,0.08) 15%, transparent 18%), radial-gradient(circle at 40% 80%, rgba(255,255,255,0.8) 0%, rgba(255,255,255,0.8) 10%, transparent 12%); }
+#board.archipelago .cell:nth-child(even), #board.archipelago .cell.row-even:nth-child(odd) { background-color: #dcdce1; background-image: radial-gradient(circle at 70% 30%, rgba(0,0,0,0.08) 0%, rgba(0,0,0,0.08) 12%, transparent 14%), radial-gradient(circle at 30% 70%, rgba(255,255,255,0.6) 0%, rgba(255,255,255,0.6) 10%, transparent 12%); }
+#board.archipelago .cell.wall { background: linear-gradient(135deg, #81c784 0%, #388e3c 100%) !important; border: 1px solid #a5d6a7; box-shadow: inset 0 0 8px rgba(255,255,255,0.5), inset 2px 2px 4px rgba(255,255,255,0.4); }
+#board.archipelago .cell.wall-breakable { background: linear-gradient(135deg, #a5d6a7 0%, #4caf50 100%) !important; border: 1px solid #c8e6c9; box-shadow: inset 0 0 6px rgba(255,255,255,0.4); }
+#board.archipelago .cell.wall-breakable[data-hp="4"]::after { opacity: 1; background-image: linear-gradient(45deg, transparent 48%, rgba(255,255,255,0.8) 49%, transparent 51%); }
+#board.archipelago .cell.wall-breakable[data-hp="3"]::after { opacity: 1; background-image: linear-gradient(45deg, transparent 48%, rgba(255,255,255,0.8) 49%, transparent 51%), linear-gradient(-30deg, transparent 40%, rgba(255,255,255,0.85) 41%, transparent 43%); }
+#board.archipelago .cell.wall-breakable[data-hp="2"]::after { opacity: 1; background-image: linear-gradient(45deg, transparent 48%, rgba(255,255,255,0.8) 49%, transparent 51%), linear-gradient(-30deg, transparent 40%, rgba(255,255,255,0.85) 41%, transparent 43%), linear-gradient(10deg, transparent 60%, rgba(255,255,255,0.9) 61%, transparent 63%); }
+#board.archipelago .cell.wall-breakable[data-hp="1"]::after { opacity: 1; background-image: linear-gradient(45deg, transparent 48%, rgba(255,255,255,0.8) 49%, transparent 51%), linear-gradient(-30deg, transparent 40%, rgba(255,255,255,0.85) 41%, transparent 43%), linear-gradient(10deg, transparent 60%, rgba(255,255,255,0.9) 61%, transparent 63%), linear-gradient(80deg, transparent 30%, rgba(255,255,255,0.9) 31%, transparent 33%); }
+
+/* 3. QUANTUM NEXUS BIOME */
+#board.quantum .cell { background-color: #0b021a; background-image: radial-gradient(1px 1px at 10px 10px, #fff, transparent), radial-gradient(1.5px 1.5px at 40px 20px, #d8b4fe, transparent), radial-gradient(1px 1px at 25px 45px, #fff, transparent), radial-gradient(2px 2px at 50px 50px, #a855f7, transparent); }
+#board.quantum .cell:nth-child(even), #board.quantum .cell.row-even:nth-child(odd) { background-color: #120326; background-image: radial-gradient(1.5px 1.5px at 15px 35px, #fff, transparent), radial-gradient(1px 1px at 45px 10px, #e879f9, transparent), radial-gradient(2px 2px at 30px 25px, #fff, transparent); }
+
+/* 4. CONTAMINATED WASTELAND BIOME */
+#board.wasteland .cell { background-color: #d8a670; background-image: none; }
+#board.wasteland .cell:nth-child(even), #board.wasteland .cell.row-even:nth-child(odd) { background-color: #cf9b63; background-image: none; }
+#board.wasteland .cell.wall { background: repeating-linear-gradient(90deg, #5d4037 0px, #5d4037 12px, #3e2723 12px, #3e2723 14px), linear-gradient(0deg, rgba(0,0,0,0.3), transparent) !important; box-shadow: inset 0 2px 2px rgba(255,255,255,0.1), inset 0 -2px 3px rgba(0,0,0,0.5); }
+#board.wasteland .cell.wall-breakable { background: repeating-linear-gradient(90deg, #795548 0px, #795548 12px, #4e342e 12px, #4e342e 14px) !important; box-shadow: inset 0 2px 2px rgba(255,255,255,0.15), inset 0 -2px 3px rgba(0,0,0,0.4); }
+#board.wasteland .cell.wall-breakable[data-hp="4"]::after { opacity: 1; background-image: linear-gradient(85deg, transparent 48%, rgba(30,15,5,0.9) 49%, transparent 51%); }
+#board.wasteland .cell.wall-breakable[data-hp="3"]::after { opacity: 1; background-image: linear-gradient(85deg, transparent 48%, rgba(30,15,5,0.9) 49%, transparent 51%), linear-gradient(92deg, transparent 35%, rgba(30,15,5,0.8) 36%, transparent 38%); }
+#board.wasteland .cell.wall-breakable[data-hp="2"]::after { opacity: 1; background-image: linear-gradient(85deg, transparent 48%, rgba(30,15,5,0.9) 49%, transparent 51%), linear-gradient(92deg, transparent 35%, rgba(30,15,5,0.8) 36%, transparent 38%), linear-gradient(88deg, transparent 60%, rgba(30,15,5,0.85) 61%, transparent 63%); }
+#board.wasteland .cell.wall-breakable[data-hp="1"]::after { opacity: 1; background-image: linear-gradient(85deg, transparent 48%, rgba(30,15,5,0.9) 49%, transparent 51%), linear-gradient(92deg, transparent 35%, rgba(30,15,5,0.8) 36%, transparent 38%), linear-gradient(88deg, transparent 60%, rgba(30,15,5,0.85) 61%, transparent 63%), linear-gradient(100deg, transparent 20%, rgba(30,15,5,0.9) 21%, transparent 23%); }
+
+
+/* 6. FROZEN GLACIER BIOME */
+#board.glacier .cell { background-color: #a8dadc; background-image: linear-gradient(135deg, rgba(255,255,255,0.4) 0%, transparent 50%, rgba(0,100,200,0.1) 100%); }
+#board.glacier .cell:nth-child(even), #board.glacier .cell.row-even:nth-child(odd) { background-color: #95c8c8; background-image: linear-gradient(135deg, rgba(255,255,255,0.3) 0%, transparent 40%, rgba(0,100,200,0.15) 100%); }
+
+/* Glissantes */
+.cell.ice-floor { 
+  background-color: #e0f7fa !important; 
+  background-image: 
+    linear-gradient(45deg, rgba(255,255,255,0.8) 0%, transparent 20%, rgba(255,255,255,0.8) 40%, transparent 60%),
+    linear-gradient(-30deg, transparent 30%, rgba(200,230,255,0.5) 32%, transparent 34%) !important;
+  box-shadow: inset 0 0 15px rgba(255,255,255,0.9);
+}
+
+#board.glacier .cell.wall { background: linear-gradient(135deg, #e0f2f1 0%, #80deea 100%) !important; box-shadow: inset 0 2px 5px rgba(255,255,255,0.8), inset 0 -2px 5px rgba(0,100,150,0.4); border: 1px solid #b2ebf2; }
+#board.glacier .cell.wall-breakable { background: linear-gradient(135deg, #b2ebf2 0%, #4dd0e1 100%) !important; box-shadow: inset 0 2px 4px rgba(255,255,255,0.6), inset 0 -2px 4px rgba(0,100,150,0.3); border: 1px solid #80deea; }
+/* Eclats de glace */
+#board.glacier .cell.wall-breakable[data-hp="4"]::after { opacity: 1; background-image: linear-gradient(35deg, transparent 48%, rgba(255,255,255,0.9) 49%, transparent 51%); }
+#board.glacier .cell.wall-breakable[data-hp="3"]::after { opacity: 1; background-image: linear-gradient(35deg, transparent 48%, rgba(255,255,255,0.9) 49%, transparent 51%), linear-gradient(-55deg, transparent 40%, rgba(255,255,255,0.85) 41%, transparent 43%); }
+#board.glacier .cell.wall-breakable[data-hp="2"]::after { opacity: 1; background-image: linear-gradient(35deg, transparent 48%, rgba(255,255,255,0.9) 49%, transparent 51%), linear-gradient(-55deg, transparent 40%, rgba(255,255,255,0.85) 41%, transparent 43%), linear-gradient(10deg, transparent 60%, rgba(255,255,255,0.9) 61%, transparent 63%); }
+#board.glacier .cell.wall-breakable[data-hp="1"]::after { opacity: 1; background-image: linear-gradient(35deg, transparent 48%, rgba(255,255,255,0.9) 49%, transparent 51%), linear-gradient(-55deg, transparent 40%, rgba(255,255,255,0.85) 41%, transparent 43%), linear-gradient(10deg, transparent 60%, rgba(255,255,255,0.9) 61%, transparent 63%), linear-gradient(80deg, transparent 30%, rgba(255,255,255,0.9) 31%, transparent 33%); }
+
+/* 7. INDUSTRIAL FOUNDRY BIOME */
+#board.foundry .cell { background-color: #2c3033; background-image: repeating-linear-gradient(45deg, transparent, transparent 4px, rgba(0,0,0,0.2) 4px, rgba(0,0,0,0.2) 5px), repeating-linear-gradient(-45deg, transparent, transparent 4px, rgba(0,0,0,0.2) 4px, rgba(0,0,0,0.2) 5px); }
+#board.foundry .cell:nth-child(even), #board.foundry .cell.row-even:nth-child(odd) { background-color: #232729; background-image: repeating-linear-gradient(45deg, transparent, transparent 4px, rgba(0,0,0,0.25) 4px, rgba(0,0,0,0.25) 5px), repeating-linear-gradient(-45deg, transparent, transparent 4px, rgba(0,0,0,0.25) 4px, rgba(0,0,0,0.25) 5px); }
+
+/* Tapis Roulants */
+@keyframes moveBeltUp { from { background-position: 0 0; } to { background-position: 0 -20px; } }
+@keyframes moveBeltDown { from { background-position: 0 0; } to { background-position: 0 20px; } }
+@keyframes moveBeltLeft { from { background-position: 0 0; } to { background-position: -20px 0; } }
+@keyframes moveBeltRight { from { background-position: 0 0; } to { background-position: 20px 0; } }
+
+.cell.conveyor { background-color: #1a1a1a !important; box-shadow: inset 0 0 5px #000; position: relative; }
+.cell.conveyor::after { content:''; position:absolute; inset:0; pointer-events:none; opacity:0.6; }
+.cell.conveyor.dir-up::after { background: repeating-linear-gradient(0deg, transparent, transparent 10px, var(--gold) 10px, var(--gold) 20px); animation: moveBeltUp 1s linear infinite; clip-path: polygon(50% 0%, 0% 50%, 50% 100%, 100% 50%); }
+.cell.conveyor.dir-down::after { background: repeating-linear-gradient(0deg, transparent, transparent 10px, var(--gold) 10px, var(--gold) 20px); animation: moveBeltDown 1s linear infinite; clip-path: polygon(50% 0%, 0% 50%, 50% 100%, 100% 50%); }
+.cell.conveyor.dir-left::after { background: repeating-linear-gradient(90deg, transparent, transparent 10px, var(--gold) 10px, var(--gold) 20px); animation: moveBeltLeft 1s linear infinite; clip-path: polygon(0% 50%, 50% 0%, 100% 50%, 50% 100%); }
+.cell.conveyor.dir-right::after { background: repeating-linear-gradient(90deg, transparent, transparent 10px, var(--gold) 10px, var(--gold) 20px); animation: moveBeltRight 1s linear infinite; clip-path: polygon(0% 50%, 50% 0%, 100% 50%, 50% 100%); }
+
+#board.foundry .cell.wall { background: radial-gradient(circle at 10% 10%, #000 2px, transparent 3px), radial-gradient(circle at 90% 10%, #000 2px, transparent 3px), radial-gradient(circle at 10% 90%, #000 2px, transparent 3px), radial-gradient(circle at 90% 90%, #000 2px, transparent 3px), linear-gradient(135deg, #5c6265 0%, #2a2d30 100%) !important; box-shadow: inset 0 2px 2px rgba(255,255,255,0.2), inset 0 -2px 3px rgba(0,0,0,0.8); }
+#board.foundry .cell.wall-breakable { background: linear-gradient(135deg, #7c5c45 0%, #3e2615 100%) !important; box-shadow: inset 0 2px 2px rgba(255,150,100,0.2), inset 0 -2px 3px rgba(0,0,0,0.8); }
+#board.foundry .cell.wall-breakable[data-hp="4"]::after { opacity: 1; background-image: linear-gradient(75deg, transparent 48%, rgba(20,10,0,0.9) 49%, transparent 51%); }
+#board.foundry .cell.wall-breakable[data-hp="3"]::after { opacity: 1; background-image: linear-gradient(75deg, transparent 48%, rgba(20,10,0,0.9) 49%, transparent 51%), linear-gradient(-85deg, transparent 35%, rgba(20,10,0,0.8) 36%, transparent 38%); }
+#board.foundry .cell.wall-breakable[data-hp="2"]::after { opacity: 1; background-image: linear-gradient(75deg, transparent 48%, rgba(20,10,0,0.9) 49%, transparent 51%), linear-gradient(-85deg, transparent 35%, rgba(20,10,0,0.8) 36%, transparent 38%), linear-gradient(10deg, transparent 60%, rgba(20,10,0,0.85) 61%, transparent 63%); }
+#board.foundry .cell.wall-breakable[data-hp="1"]::after { opacity: 1; background-image: linear-gradient(75deg, transparent 48%, rgba(20,10,0,0.9) 49%, transparent 51%), linear-gradient(-85deg, transparent 35%, rgba(20,10,0,0.8) 36%, transparent 38%), linear-gradient(10deg, transparent 60%, rgba(20,10,0,0.85) 61%, transparent 63%), linear-gradient(100deg, transparent 20%, rgba(20,10,0,0.9) 21%, transparent 23%); }
+
+
+/* 8. CRYSTAL CAVERN BIOME */
+#board.cavern .cell { background-color: #311b92; background-image: linear-gradient(135deg, rgba(255,255,255,0.1) 0%, transparent 25%, transparent 75%, rgba(0,0,0,0.2) 100%), linear-gradient(45deg, rgba(255,255,255,0.05) 0%, transparent 30%); }
+#board.cavern .cell:nth-child(even), #board.cavern .cell.row-even:nth-child(odd) { background-color: #2c1682; background-image: linear-gradient(-135deg, rgba(255,255,255,0.1) 0%, transparent 25%, transparent 75%, rgba(0,0,0,0.2) 100%); }
+/* Miroirs */
+#board.cavern .cell.wall { background: linear-gradient(135deg, #d500f9 0%, #4a148c 100%) !important; box-shadow: inset 0 0 12px rgba(255,255,255,0.5), 0 0 8px rgba(213,0,249,0.5); border: 1px solid #ea80fc; }
+#board.cavern .cell.wall-breakable { background: linear-gradient(135deg, #9c27b0 0%, #311b92 100%) !important; box-shadow: inset 0 0 8px rgba(255,255,255,0.3); border: 1px solid #ba68c8; }
+/* Fissures lumineuses */
+#board.cavern .cell.wall-breakable[data-hp="4"]::after { opacity: 1; background-image: linear-gradient(45deg, transparent 48%, rgba(255,64,129,0.9) 49%, transparent 51%); box-shadow: inset 0 0 5px rgba(255,64,129,0.4); }
+#board.cavern .cell.wall-breakable[data-hp="3"]::after { opacity: 1; background-image: linear-gradient(45deg, transparent 48%, rgba(255,64,129,0.9) 49%, transparent 51%), linear-gradient(-60deg, transparent 40%, rgba(255,64,129,0.85) 41%, transparent 43%); box-shadow: inset 0 0 8px rgba(255,64,129,0.5); }
+#board.cavern .cell.wall-breakable[data-hp="2"]::after { opacity: 1; background-image: linear-gradient(45deg, transparent 48%, rgba(255,64,129,0.9) 49%, transparent 51%), linear-gradient(-60deg, transparent 40%, rgba(255,64,129,0.85) 41%, transparent 43%), linear-gradient(20deg, transparent 60%, rgba(255,64,129,0.9) 61%, transparent 63%); box-shadow: inset 0 0 12px rgba(255,64,129,0.6); }
+#board.cavern .cell.wall-breakable[data-hp="1"]::after { opacity: 1; background-image: linear-gradient(45deg, transparent 48%, rgba(255,64,129,0.9) 49%, transparent 51%), linear-gradient(-60deg, transparent 40%, rgba(255,64,129,0.85) 41%, transparent 43%), linear-gradient(20deg, transparent 60%, rgba(255,64,129,0.9) 61%, transparent 63%), linear-gradient(85deg, transparent 30%, rgba(255,64,129,0.9) 31%, transparent 33%); box-shadow: inset 0 0 15px rgba(255,64,129,0.8); }
+
+/* 9. VOLCANIC CRATER BIOME */
+#board.volcanic .cell { background-color: #1a1a1a; background-image: linear-gradient(120deg, transparent 30%, rgba(255,61,0,0.15) 31%, transparent 32%), linear-gradient(-40deg, transparent 70%, rgba(255,61,0,0.1) 71%, transparent 72%); }
+#board.volcanic .cell:nth-child(even), #board.volcanic .cell.row-even:nth-child(odd) { background-color: #141414; background-image: linear-gradient(60deg, transparent 40%, rgba(255,61,0,0.15) 41%, transparent 42%); }
+
+/* Geysers */
+@keyframes lavaBubble { 
+  0% { background-size: 100% 100%; filter: brightness(1); } 
+  50% { background-size: 120% 120%; filter: brightness(1.3); } 
+  100% { background-size: 100% 100%; filter: brightness(1); } 
+}
+.cell.geyser { 
+  background: radial-gradient(circle at 50% 50%, #ff3d00 0%, #dd2c00 40%, #1a1a1a 80%) !important; 
+  animation: lavaBubble 2s ease-in-out infinite; 
+  box-shadow: inset 0 0 10px rgba(255,61,0,0.5);
+}
+
+#board.volcanic .cell.wall { background: linear-gradient(135deg, #333 0%, #000 100%) !important; box-shadow: inset 0 2px 3px rgba(255,255,255,0.2), inset 0 -2px 3px rgba(0,0,0,0.8); border: 1px solid #444; }
+#board.volcanic .cell.wall-breakable { background: linear-gradient(135deg, #222 0%, #000 100%) !important; box-shadow: inset 0 2px 2px rgba(255,255,255,0.1), inset 0 -2px 3px rgba(0,0,0,0.8); border: 1px solid #222; }
+/* Fissures de lave */
+#board.volcanic .cell.wall-breakable[data-hp="4"]::after { opacity: 1; background-image: linear-gradient(75deg, transparent 48%, rgba(255,61,0,0.9) 49%, transparent 51%); box-shadow: inset 0 0 5px rgba(255,61,0,0.3); }
+#board.volcanic .cell.wall-breakable[data-hp="3"]::after { opacity: 1; background-image: linear-gradient(75deg, transparent 48%, rgba(255,61,0,0.9) 49%, transparent 51%), linear-gradient(-85deg, transparent 35%, rgba(255,152,0,0.8) 36%, transparent 38%); box-shadow: inset 0 0 8px rgba(255,61,0,0.4); }
+#board.volcanic .cell.wall-breakable[data-hp="2"]::after { opacity: 1; background-image: linear-gradient(75deg, transparent 48%, rgba(255,61,0,0.9) 49%, transparent 51%), linear-gradient(-85deg, transparent 35%, rgba(255,152,0,0.8) 36%, transparent 38%), linear-gradient(10deg, transparent 60%, rgba(255,235,59,0.85) 61%, transparent 63%); box-shadow: inset 0 0 10px rgba(255,61,0,0.5); }
+#board.volcanic .cell.wall-breakable[data-hp="1"]::after { opacity: 1; background-image: linear-gradient(75deg, transparent 48%, rgba(255,61,0,0.9) 49%, transparent 51%), linear-gradient(-85deg, transparent 35%, rgba(255,152,0,0.8) 36%, transparent 38%), linear-gradient(10deg, transparent 60%, rgba(255,235,59,0.85) 61%, transparent 63%), linear-gradient(100deg, transparent 20%, rgba(255,61,0,0.9) 21%, transparent 23%); box-shadow: inset 0 0 15px rgba(255,61,0,0.7); }
