@@ -5,38 +5,99 @@ const io = require('socket.io')(http);
 
 app.use(express.static(__dirname));
 
-let roomData = {}; // La mémoire du serveur pour retenir les maps
+let rooms = {};
 
 io.on('connection', (socket) => {
-    console.log('🟢 Un joueur est connecté ! ID:', socket.id);
+    console.log('🟢 Connexion:', socket.id);
 
     socket.on('joinRoom', (roomCode) => {
         socket.join(roomCode);
         
-        // 1. On compte les joueurs pour attribuer les numéros (Joueur 1, puis Joueur 2...)
-        if (!roomData[roomCode]) roomData[roomCode] = { playerCount: 0, grid: null };
-        roomData[roomCode].playerCount++;
+        // Initialisation de la salle si elle n'existe pas
+        if (!rooms[roomCode]) {
+            rooms[roomCode] = {
+                clients: [], // Garde l'ordre de connexion
+                settings: { playerCount: 3, gridSize: 'normal', biome: 'classic' }, // Stockage des options
+                grid: null,
+                isPlaying: false
+            };
+        }
         
-        const playerNum = roomData[roomCode].playerCount;
-        console.log(`🏠 Joueur ${playerNum} a rejoint la salle ${roomCode}`);
+        const room = rooms[roomCode];
+        if (!room.clients.includes(socket.id)) room.clients.push(socket.id);
 
-        // 2. On dit au jeu de démarrer avec son numéro, et on lui donne la map si elle existe déjà
-        socket.emit('gameStarted', { 
-            playerNum: playerNum, 
-            grid: roomData[roomCode].grid 
+        // Le premier arrivé est l'Hôte
+        const isHost = room.clients[0] === socket.id;
+        
+        socket.emit('lobbyJoined', {
+            roomCode: roomCode,
+            isHost: isHost,
+            settings: room.settings
         });
     });
 
-    // 3. Quand le Joueur 1 crée la map, il l'envoie au serveur pour la sauvegarder
-    socket.on('saveMap', (data) => {
-        roomData[data.room].grid = data.grid;
-        // On la transmet aux autres joueurs du salon
-        socket.to(data.room).emit('loadMap', data.grid);
+    // 🔄 Synchronisation du Salon (Seul l'hôte a le droit)
+    socket.on('updateSettings', (data) => {
+        const room = rooms[data.roomCode];
+        if (room && room.clients[0] === socket.id) {
+            room.settings = data.settings;
+            // Diffuse les réglages à tous les autres clients du salon
+            socket.to(data.roomCode).emit('settingsChanged', room.settings);
+        }
     });
 
-    // 4. Quand un joueur fait un coup valide, on l'envoie à tout le monde
+    // 🚀 Lancement de la partie
+    socket.on('requestStartGame', (data) => {
+        const room = rooms[data.roomCode];
+        if (room && room.clients[0] === socket.id) {
+            room.isPlaying = true;
+            
+            // Distribution des Rôles
+            room.clients.forEach((clientId, index) => {
+                let role = 'spectator';
+                if (index < room.settings.playerCount) {
+                    role = index + 1; // Joueur 1 à 6
+                }
+                io.to(clientId).emit('gameStarted', { playerNum: role, settings: room.settings });
+            });
+        }
+    });
+
+    // Mécaniques de jeu (inchangées)
+    socket.on('saveMap', (data) => {
+        if(rooms[data.room]) {
+            rooms[data.room].grid = data.grid;
+            socket.to(data.room).emit('loadMap', data.grid);
+        }
+    });
+
     socket.on('playTurn', (data) => {
         io.to(data.room).emit('updateBoard', data);
+    });
+
+    // 🔙 Retour au salon post-partie
+    socket.on('requestReturnToLobby', (roomCode) => {
+        const room = rooms[roomCode];
+        if (room && room.clients[0] === socket.id) {
+            room.isPlaying = false;
+            io.to(roomCode).emit('returnToLobby');
+        }
+    });
+
+    socket.on('disconnect', () => {
+        for (const roomCode in rooms) {
+            const room = rooms[roomCode];
+            const index = room.clients.indexOf(socket.id);
+            if (index !== -1) {
+                room.clients.splice(index, 1);
+                if (room.clients.length === 0) {
+                    delete rooms[roomCode]; // Détruit la salle si vide
+                } else if (index === 0) {
+                    // Si l'Hôte part, le Joueur 2 devient l'Hôte
+                    io.to(room.clients[0]).emit('hostMigrated');
+                }
+            }
+        }
     });
 });
 

@@ -11,9 +11,10 @@ const THRESHOLD = 4;
 const MAX_BOMBS = 2, MAX_SHIELDS = 3, MAX_ICE = 1;
 
 // ─── Player config ────────────────────────────────────────────────────────────
-const P_COLOR = { 1:'#e63946', 2:'#2196f3', 3:'#2ecc71', 4:'#f4e04d' };
-const P_LIGHT  = { 1:'#ff6b74', 2:'#64b5f6', 3:'#6ee7a0', 4:'#fff176' };
-const P_NAME   = { 1:'Player 1', 2:'Player 2', 3:'Player 3', 4:'Player 4' };
+let isHost = true; // Par défaut en Local
+const P_COLOR = { 1:'#e63946', 2:'#2196f3', 3:'#2ecc71', 4:'#f4e04d', 5:'#ff4081', 6:'#18ffff' };
+const P_LIGHT  = { 1:'#ff6b74', 2:'#64b5f6', 3:'#6ee7a0', 4:'#fff176', 5:'#ff80ab', 6:'#84ffff' };
+const P_NAME   = { 1:'Player 1', 2:'Player 2', 3:'Player 3', 4:'Player 4', 5:'Player 5', 6:'Player 6' };
 
 // ─── Game state ───────────────────────────────────────────────────────────────
 let playerCount   = 3;
@@ -100,10 +101,29 @@ function verifyCurrentPlayerAlive() {
 }
 
 // ─── Pre-game menu ────────────────────────────────────────────────────────────
+// ─── Synchronisation du Salon (Lobby) ─────────────────────────────────────────
+function pushSettings() {
+    if (gameMode === 'online' && isHost && socket) {
+        const settings = {
+            playerCount: playerCount, gridSize: currentGridSize, biome: currentBiome,
+            toggles: { lightning: lightningEnabled, overgrowth: overgrowthEnabled, blackHoles: blackHolesEnabled, walls: wallsEnabled, teleporters: teleportersEnabled, shields: shieldsEnabled, bombs: bombsEnabled, ice: iceEnabled, sismic: sismicEnabled }
+        };
+        socket.emit('updateSettings', { roomCode: currentRoom, settings: settings });
+    }
+}
+
+// ─── Pre-game menu ────────────────────────────────────────────────────────────
 function selectPlayerCount(n) {
   playerCount = n;
-  [2,3,4].forEach(i => document.getElementById(`pc-${i}`).classList.toggle('selected', i === n));
-  [1,2,3,4].forEach(i => document.getElementById(`sw${i}`).classList.toggle('on', i <= n));
+  [2,3,4,5,6].forEach(i => {
+      const btn = document.getElementById(`pc-${i}`);
+      if(btn) btn.classList.toggle('selected', i === n);
+  });
+  [1,2,3,4,5,6].forEach(i => {
+      const sw = document.getElementById(`sw${i}`);
+      if(sw) sw.classList.toggle('on', i <= n);
+  });
+  pushSettings();
 }
 
 function selectGridSize(size) {
@@ -115,17 +135,23 @@ function selectGridSize(size) {
   if (size === 'small') { ROWS = 6; COLS = 6; } 
   else if (size === 'normal') { ROWS = 8; COLS = 10; } 
   else if (size === 'big') { ROWS = 11; COLS = 15; }
+  pushSettings();
 }
 
-function togglePregameLightning() { lightningEnabled = !lightningEnabled; document.getElementById('pregame-lightning').classList.toggle('active', lightningEnabled); }
-function togglePregameOvergrowth() { overgrowthEnabled = !overgrowthEnabled; document.getElementById('pregame-overgrowth').classList.toggle('active', overgrowthEnabled); }
-function togglePregameSismic() { sismicEnabled = !sismicEnabled; document.getElementById('pregame-sismic').classList.toggle('active', sismicEnabled); }
-function togglePregameBlackHoles() { blackHolesEnabled = !blackHolesEnabled; document.getElementById('pregame-blackholes').classList.toggle('active', blackHolesEnabled); }
-function togglePregameWalls() { wallsEnabled = !wallsEnabled; document.getElementById('pregame-walls').classList.toggle('active', wallsEnabled); }
-function togglePregameTeleporters() { teleportersEnabled = !teleportersEnabled; document.getElementById('pregame-teleporters').classList.toggle('active', teleportersEnabled); }
-function togglePregameShields() { shieldsEnabled = !shieldsEnabled; document.getElementById('pregame-shields').classList.toggle('active', shieldsEnabled); }
-function togglePregameBombs() { bombsEnabled = !bombsEnabled; document.getElementById('pregame-bombs').classList.toggle('active', bombsEnabled); }
-function togglePregameIce() { iceEnabled = !iceEnabled; document.getElementById('pregame-ice').classList.toggle('active', iceEnabled); }
+document.getElementById('biome-select').addEventListener('change', function() {
+    currentBiome = this.value;
+    pushSettings();
+});
+
+function togglePregameLightning() { lightningEnabled = !lightningEnabled; document.getElementById('pregame-lightning').classList.toggle('active', lightningEnabled); pushSettings(); }
+function togglePregameOvergrowth() { overgrowthEnabled = !overgrowthEnabled; document.getElementById('pregame-overgrowth').classList.toggle('active', overgrowthEnabled); pushSettings(); }
+function togglePregameSismic() { sismicEnabled = !sismicEnabled; document.getElementById('pregame-sismic').classList.toggle('active', sismicEnabled); pushSettings(); }
+function togglePregameBlackHoles() { blackHolesEnabled = !blackHolesEnabled; document.getElementById('pregame-blackholes').classList.toggle('active', blackHolesEnabled); pushSettings(); }
+function togglePregameWalls() { wallsEnabled = !wallsEnabled; document.getElementById('pregame-walls').classList.toggle('active', wallsEnabled); pushSettings(); }
+function togglePregameTeleporters() { teleportersEnabled = !teleportersEnabled; document.getElementById('pregame-teleporters').classList.toggle('active', teleportersEnabled); pushSettings(); }
+function togglePregameShields() { shieldsEnabled = !shieldsEnabled; document.getElementById('pregame-shields').classList.toggle('active', shieldsEnabled); pushSettings(); }
+function togglePregameBombs() { bombsEnabled = !bombsEnabled; document.getElementById('pregame-bombs').classList.toggle('active', bombsEnabled); pushSettings(); }
+function togglePregameIce() { iceEnabled = !iceEnabled; document.getElementById('pregame-ice').classList.toggle('active', iceEnabled); pushSettings(); }
 
 function selectMode(mode) {
   gameMode = mode;
@@ -138,17 +164,31 @@ function selectMode(mode) {
         goToMenu(); return;
     }
     document.getElementById('online-inputs').style.display = 'block';
+    document.getElementById('start-game-btn').innerText = "Créer / Rejoindre"; // <-- AJOUTÉ ICI
   } else {
     document.getElementById('online-inputs').style.display = 'none';
+    isHost = true;
+    document.getElementById('host-settings-area').classList.remove('disabled-for-client');
+    document.getElementById('lobby-code-display').style.display = 'none';
+    document.getElementById('start-game-btn').style.display = 'inline-block';
+    document.getElementById('start-game-btn').innerText = "Start Game"; // <-- AJOUTÉ ICI
+    currentRoom = ''; // Reset pour le local
   }
 }
 
 function startGame() {
   if (gameMode === 'online') {
-      let roomInput = document.getElementById('room-input').value.trim();
-      currentRoom = roomInput === '' ? Math.random().toString(36).substring(2, 6).toUpperCase() : roomInput.toUpperCase();
-      socket.emit('joinRoom', currentRoom);
+      if (currentRoom === '') {
+          // 1er clic : On rejoint ou on crée le salon
+          let roomInput = document.getElementById('room-input').value.trim();
+          currentRoom = roomInput === '' ? Math.random().toString(36).substring(2, 6).toUpperCase() : roomInput.toUpperCase();
+          socket.emit('joinRoom', currentRoom);
+      } else if (isHost) {
+          // 2ème clic : On est l'hôte dans le salon, on lance la partie !
+          socket.emit('requestStartGame', { roomCode: currentRoom });
+      }
   } else {
+      // Mode Local
       document.getElementById('pregame-overlay').classList.add('hidden');
       document.getElementById('game-title').style.display   = '';
       document.getElementById('game-subtitle').style.display = '';
@@ -172,6 +212,14 @@ function goToMenu() {
 function goToMainMenu() {
   document.getElementById('pregame-overlay').classList.add('hidden');
   document.getElementById('main-menu-overlay').style.display = 'flex';
+}
+
+function returnToLobby() {
+    if (gameMode === 'local') {
+        goToMenu(); // Si local, revient à l'écran de config
+    } else if (isHost) {
+        socket.emit('requestReturnToLobby', currentRoom);
+    }
 }
 
 function openRulebook() { document.getElementById('rulebook-overlay').classList.remove('hidden'); }
@@ -209,23 +257,39 @@ function buildGameUI() {
     return html;
   }
 
+  // Rangée du haut (Joueurs 1 à 3 max)
   const topRow = document.createElement('div'); topRow.className = 'players-row';
-  [1, 2].forEach(p => { const wrap = document.createElement('div'); wrap.className = 'player-card-wrap'; wrap.innerHTML = playerCardHTML(p); topRow.appendChild(wrap); });
+  let topCount = Math.min(3, playerCount);
+  for(let i = 1; i <= topCount; i++) {
+    const wrap = document.createElement('div'); wrap.className = 'player-card-wrap'; 
+    wrap.innerHTML = playerCardHTML(i); topRow.appendChild(wrap);
+  }
   gc.appendChild(topRow);
 
+  // Le plateau au centre
   const boardWrap = document.createElement('div'); boardWrap.className = 'board-wrap';
   boardWrap.innerHTML = `<div id="board"></div><div class="status-bar" id="status"></div><div class="map-info" id="map-info"></div>`;
   gc.appendChild(boardWrap);
 
-  if (playerCount >= 3) {
+  // Rangée du bas (Joueurs 4 à 6 max)
+  if (playerCount > 3) {
     const botRow = document.createElement('div'); botRow.className = 'players-row';
-    [3, 4].forEach(p => { if (p > playerCount) return; const wrap = document.createElement('div'); wrap.className = 'player-card-wrap'; wrap.innerHTML = playerCardHTML(p); botRow.appendChild(wrap); });
+    for(let i = 4; i <= playerCount; i++) {
+      const wrap = document.createElement('div'); wrap.className = 'player-card-wrap'; 
+      wrap.innerHTML = playerCardHTML(i); botRow.appendChild(wrap);
+    }
     gc.appendChild(botRow);
   }
 
   const ctrlRow = document.createElement('div'); ctrlRow.className = 'controls-row';
   const ctrlBlock = document.createElement('div'); ctrlBlock.className = 'controls-block';
-  ctrlBlock.innerHTML = `<button class="primary" onclick="resetGame()">New Game</button><button onclick="goToMenu()">← Menu</button><button onclick="openRulebook()">📖 Manuel</button>`;
+  
+  // En mode Online Spectateur, on cache le bouton "New Game"
+  if (myPlayerId !== 'spectator') {
+      ctrlBlock.innerHTML = `<button class="primary" onclick="resetGame()">New Game</button><button id="return-lobby-btn" onclick="returnToLobby()">← Salon</button><button onclick="openRulebook()">📖 Manuel</button>`;
+  } else {
+      ctrlBlock.innerHTML = `<button id="return-lobby-btn" onclick="returnToLobby()">← Salon</button><button onclick="openRulebook()">📖 Manuel</button>`;
+  }
   ctrlRow.appendChild(ctrlBlock);
 
   const legendBlock = document.createElement('div'); legendBlock.className = 'legend-card';
@@ -313,7 +377,6 @@ function generateMap() {
       }
       break;
 
-    // NOUVEAUX BIOMES
     case 'glacier':
       let iceCount = Math.floor(totalCells * 0.20);
       for(let i=0; i < iceCount; i++) { let p = pickFree(); if(p) mapIce.push(p); }
@@ -593,8 +656,7 @@ function executeFusion(fromP, toP) {
 }
 
 function handleClick(r, c) {
-  if (animating || gameOver) return;
-  
+  if (animating || gameOver || myPlayerId === 'spectator') return; // Bloque les spectateurs
   if (gameMode === 'online' && currentPlayer !== myPlayerId) { 
       setStatus("Ce n'est pas votre tour !", "warn"); return; 
   }
@@ -1156,15 +1218,24 @@ function triggerSismicCollapse() {
 
 // ─── Win & Status ─────────────────────────────────────────────────────────────
 function checkWin() {
+  // On vérifie uniquement que tous les joueurs ont bien posé leurs 3 premiers points
   const allPlaced = Array.from({length: playerCount}, (_, i) => i+1).every(p => playerHasPlaced[p]);
-  if (!allPlaced || turnCount < playerCount * 2) { verifyCurrentPlayerAlive(); return; }
+  if (!allPlaced) { verifyCurrentPlayerAlive(); return; }
   
+  // On compte les cases de chaque joueur
   const counts = {}; for (let p = 1; p <= playerCount; p++) counts[p] = 0;
-  for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) { const d = grid[r][c]; const o = d.owner; if (o > 0 && o <= playerCount && !d.isDestroyed) counts[o]++; }
+  for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) { 
+      const d = grid[r][c]; const o = d.owner; 
+      if (o > 0 && o <= playerCount && !d.isDestroyed) counts[o]++; 
+  }
   
+  // On dresse la liste des survivants
   const alive = Array.from({length: playerCount}, (_, i) => i+1).filter(p => counts[p] > 0);
   
-  if (alive.length === 1) showWinner(alive[0]); else if (alive.length === 0) showWinner(0);  else verifyCurrentPlayerAlive();
+  // S'il ne reste qu'un joueur (ou 0 en cas d'égalité kamikaze), on affiche l'écran de fin instantanément !
+  if (alive.length === 1) showWinner(alive[0]); 
+  else if (alive.length === 0) showWinner(0);  
+  else verifyCurrentPlayerAlive();
 }
 
 function showWinner(p) {
@@ -1317,38 +1388,86 @@ socket.on('loadMap', (sharedGrid) => {
 // ==========================================
 
 if (socket) {
+    socket.on('lobbyJoined', (data) => {
+        isHost = data.isHost;
+        currentRoom = data.roomCode;
+        
+        document.getElementById('pregame-overlay').classList.remove('hidden');
+        document.getElementById('main-menu-overlay').style.display = 'none';
+        
+        const codeDisplay = document.getElementById('lobby-code-display');
+        codeDisplay.style.display = 'block';
+        
+        if (!isHost) {
+            document.getElementById('host-settings-area').classList.add('disabled-for-client');
+            document.getElementById('start-game-btn').style.display = 'none';
+            codeDisplay.innerHTML = `SALON : <strong>${currentRoom}</strong> <span class="spectator-badge">En attente de l'hôte...</span>`;
+            // Appliquer les settings reçus
+            selectPlayerCount(data.settings.playerCount);
+            selectGridSize(data.settings.gridSize);
+        } else {
+            document.getElementById('host-settings-area').classList.remove('disabled-for-client');
+            document.getElementById('start-game-btn').style.display = 'inline-block';
+            codeDisplay.innerHTML = `SALON : <strong>${currentRoom}</strong> <span class="spectator-badge" style="background:var(--gold);color:#000;">Vous êtes l'Hôte</span>`;
+        }
+    });
+
+    socket.on('settingsChanged', (settings) => {
+        // Applique les paramètres modifiés par l'hôte sans déclencher pushSettings
+        if(!isHost) {
+            document.getElementById(`pc-${settings.playerCount}`).click();
+            document.getElementById(`gs-${settings.gridSize}`).click();
+            document.getElementById('biome-select').value = settings.biome;
+            currentBiome = settings.biome;
+        }
+    });
+
     socket.on('gameStarted', (data) => {
-        myPlayerId = data.playerNum; 
+        myPlayerId = data.playerNum; // 'spectator' ou 1 à 6
         
         document.getElementById('pregame-overlay').classList.add('hidden');
-        document.getElementById('game-title').style.display   = '';
+        document.getElementById('game-title').style.display = '';
         document.getElementById('game-subtitle').style.display = '';
-        
-        document.getElementById('game-subtitle').innerHTML = `SALLE : <strong style="color:var(--gold)">${currentRoom}</strong> - Vous êtes le <strong style="color:${P_LIGHT[myPlayerId]}">Joueur ${myPlayerId}</strong>`;
-        
         document.getElementById('game-container').style.display = '';
-        buildGameUI();
         
-        if (myPlayerId === 1) {
-            resetGame();
+        let roleText = myPlayerId === 'spectator' 
+            ? `<strong style="color:#aaa">SPECTATEUR</strong>` 
+            : `Vous êtes le <strong style="color:${P_LIGHT[myPlayerId]}">Joueur ${myPlayerId}</strong>`;
+            
+        document.getElementById('game-subtitle').innerHTML = `SALLE : <strong style="color:var(--gold)">${currentRoom}</strong> - ${roleText}`;
+        
+        buildGameUI();
+        resetGame();
+
+        if (isHost) {
             socket.emit('saveMap', { room: currentRoom, grid: grid });
-        } else {
-            resetGame();
-            if (data.grid) {
-                grid = data.grid;
-                buildBoard();
-                renderAll();
-            }
+        }
+        
+        if (myPlayerId === 'spectator') {
+            document.getElementById('return-lobby-btn').style.display = 'none';
+        } else if (!isHost) {
+            document.getElementById('return-lobby-btn').innerHTML = 'En attente de l\'Hôte...';
+            document.getElementById('return-lobby-btn').disabled = true;
         }
     });
 
     socket.on('loadMap', (sharedGrid) => {
-        grid = sharedGrid;
-        buildBoard();
-        renderAll();
+        if(!isHost) { grid = sharedGrid; buildBoard(); renderAll(); }
     });
 
     socket.on('updateBoard', (data) => {
         executeTurn(data.r, data.c, data.player, data.powerup);
+    });
+
+    socket.on('returnToLobby', () => {
+        goToMenu(); // Réaffiche le salon
+        document.getElementById('lobby-code-display').style.display = 'block';
+    });
+
+    socket.on('hostMigrated', () => {
+        isHost = true;
+        document.getElementById('host-settings-area').classList.remove('disabled-for-client');
+        document.getElementById('start-game-btn').style.display = 'inline-block';
+        document.getElementById('lobby-code-display').innerHTML = `SALON : <strong>${currentRoom}</strong> <span class="spectator-badge" style="background:var(--gold);color:#000;">Vous êtes le nouvel Hôte</span>`;
     });
 }
