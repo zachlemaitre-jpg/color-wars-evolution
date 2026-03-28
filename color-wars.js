@@ -1454,7 +1454,13 @@ if (socket) {
     });
 
     socket.on('loadMap', (sharedGrid) => {
-        if(!isHost) { grid = sharedGrid; buildBoard(); renderAll(); }
+        // SÉCURITÉ : On n'écrase pas la grille si on est l'Hôte 
+        // ou si une animation est en cours (pour éviter les doublons visuels)
+        if (!isHost && !animating) { 
+            grid = sharedGrid; 
+            // buildBoard(); // <--- SUPPRIME CETTE LIGNE, elle casse les animations !
+            renderAll(); 
+        }
     });
 
     socket.on('updateBoard', (data) => {
