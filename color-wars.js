@@ -262,7 +262,12 @@ function buildGameUI() {
     if (iceEnabled) {
       html += `<div class="card-pu-btn" id="p${p}-btn-ice" onclick="selectPowerup('ice')"><svg viewBox="0 0 11 11" xmlns="http://www.w3.org/2000/svg" style="width:10px;height:10px;display:block;flex-shrink:0"><rect x="1.5" y="1.5" width="8" height="8" rx="2" fill="rgba(140, 210, 255, 0.6)" stroke="#8cd2ff" stroke-width="1"/><line x1="3" y1="3" x2="8" y2="8" stroke="#8cd2ff" stroke-width="1" stroke-linecap="round"/><line x1="8" y1="3" x2="3" y2="8" stroke="#8cd2ff" stroke-width="1" stroke-linecap="round"/></svg><div class="card-pu-label">Ice</div><div class="card-pu-stock" id="p${p}-stock-ice">×${MAX_ICE}</div></div>`;
     }
-    html += `</div><div class="card-actions"><button class="action-btn" id="p${p}-btn-fusion" onclick="openFusionModal(${p})">Fusion</button><button class="action-btn quit-btn" id="p${p}-btn-quit" onclick="quitGame(${p})">Quitter</button></div></div>`;
+    let actionsHTML = '';
+    if (myPlayerId !== 'spectator') {
+        actionsHTML = `<div class="card-actions"><button class="action-btn" id="p${p}-btn-fusion" onclick="openFusionModal(${p})">Fusion</button><button class="action-btn quit-btn" id="p${p}-btn-quit" onclick="quitGame(${p})">Quitter</button></div>`;
+    }
+    
+    html += `</div>${actionsHTML}</div>`;
     return html;
   }
 
@@ -1422,17 +1427,37 @@ if (socket) {
     });
 
     socket.on('settingsChanged', (settings) => {
-        // Applique les paramètres modifiés par l'hôte sans déclencher pushSettings
         if(!isHost) {
-            document.getElementById(`pc-${settings.playerCount}`).click();
-            document.getElementById(`gs-${settings.gridSize}`).click();
-            document.getElementById('biome-select').value = settings.biome;
+            // Mise à jour des variables
+            playerCount = settings.playerCount;
+            currentGridSize = settings.gridSize;
             currentBiome = settings.biome;
+            document.getElementById('biome-select').value = settings.biome;
+
+            // Mise à jour visuelle des boutons "Joueurs" (sans faire de .click())
+            [2,3,4,5,6].forEach(i => {
+                const btn = document.getElementById(`pc-${i}`);
+                if(btn) btn.classList.toggle('selected', i === playerCount);
+            });
+            [1,2,3,4,5,6].forEach(i => {
+                const sw = document.getElementById(`sw${i}`);
+                if(sw) sw.classList.toggle('on', i <= playerCount);
+            });
+
+            // Mise à jour visuelle des boutons "Taille"
+            ['small', 'normal', 'big'].forEach(s => {
+                const el = document.getElementById(`gs-${s}`);
+                if (el) el.classList.toggle('selected', s === currentGridSize);
+            });
         }
     });
 
     socket.on('gameStarted', (data) => {
-        myPlayerId = data.playerNum; // 'spectator' ou 1 à 6
+        if (data.playerNum === 'spectator') {
+            myPlayerId = 'spectator';
+        } else {
+            myPlayerId = Number(data.playerNum);
+        }
         
         document.getElementById('pregame-overlay').classList.add('hidden');
         document.getElementById('game-title').style.display = '';
@@ -1461,17 +1486,25 @@ if (socket) {
     });
 
     socket.on('loadMap', (sharedGrid) => {
-        // SÉCURITÉ : On n'écrase pas la grille si on est l'Hôte 
-        // ou si une animation est en cours (pour éviter les doublons visuels)
-        if (!isHost && !animating) { 
+        if (!isHost) { 
+            // ANTI-LAG : Si on reçoit la vérité absolue de l'Hôte mais qu'on était en train d'animer, on coupe tout pour rattraper notre retard.
+            if (animating) {
+                animating = false;
+                window.explosionProcessing = false;
+                window.explosionQueue = [];
+                activeProjectiles = 0;
+                // On nettoie les points volants bloqués à l'écran
+                document.querySelectorAll('.flying-dot').forEach(el => el.remove());
+            }
+            
             grid = sharedGrid; 
-            // buildBoard(); // <--- SUPPRIME CETTE LIGNE, elle casse les animations !
             renderAll(); 
         }
     });
 
     socket.on('updateBoard', (data) => {
-        executeTurn(data.r, data.c, data.player, data.powerup);
+        // On force 'data.player' en nombre avant de l'envoyer à executeTurn
+        executeTurn(data.r, data.c, Number(data.player), data.powerup);
     });
 
     socket.on('returnToLobby', () => {
@@ -1494,6 +1527,19 @@ if (socket) {
             // Si je suis l'hôte, je garde le contrôle
             document.getElementById('host-settings-area').classList.remove('disabled-for-client');
             document.getElementById('start-game-btn').style.display = 'inline-block';
+        }
+    });
+
+    socket.on('hostMigrated', () => {
+        isHost = true;
+        document.getElementById('host-settings-area').classList.remove('disabled-for-client');
+        document.getElementById('start-game-btn').style.display = 'inline-block';
+        document.getElementById('lobby-code-display').innerHTML = `SALON : <strong>${currentRoom}</strong> <span class="spectator-badge" style="background:var(--gold);color:#000;">Vous êtes le nouvel Hôte</span>`;
+        
+        // Le nouvel Hôte impose immédiatement sa grille pour s'assurer
+        // que tous les autres joueurs sont parfaitement synchronisés avec lui.
+        if (gameMode === 'online' && !gameOver) {
+            socket.emit('saveMap', { room: currentRoom, grid: grid });
         }
     });
 }
