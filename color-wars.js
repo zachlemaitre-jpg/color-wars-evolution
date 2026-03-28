@@ -212,6 +212,24 @@ function goToMenu() {
 function goToMainMenu() {
   document.getElementById('pregame-overlay').classList.add('hidden');
   document.getElementById('main-menu-overlay').style.display = 'flex';
+
+  // --- NOUVEAU : Nettoyage complet du mode en ligne ---
+  if (gameMode === 'online' && socket) {
+      // 1. On se déconnecte (le serveur va détruire le salon automatiquement si on était seul)
+      socket.disconnect();
+      
+      // 2. On se reconnecte avec une identité toute neuve une fraction de seconde plus tard
+      setTimeout(() => {
+          socket.connect();
+      }, 100);
+
+      // 3. On remet toutes nos variables à zéro
+      currentRoom = '';
+      isHost = false;
+      
+      // 4. On vide le champ de texte pour ne pas garder l'ancien code affiché
+      document.getElementById('room-input').value = ''; 
+  }
 }
 
 function returnToLobby() {
