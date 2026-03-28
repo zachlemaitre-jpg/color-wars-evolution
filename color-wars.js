@@ -213,22 +213,22 @@ function goToMainMenu() {
   document.getElementById('pregame-overlay').classList.add('hidden');
   document.getElementById('main-menu-overlay').style.display = 'flex';
 
-  // --- NOUVEAU : Nettoyage complet du mode en ligne ---
+  // --- Nettoyage complet du mode en ligne ---
   if (gameMode === 'online' && socket) {
-      // 1. On se déconnecte (le serveur va détruire le salon automatiquement si on était seul)
+      // 1. On se déconnecte pour détruire le salon côté serveur
       socket.disconnect();
-      
-      // 2. On se reconnecte avec une identité toute neuve une fraction de seconde plus tard
-      setTimeout(() => {
-          socket.connect();
-      }, 100);
+      setTimeout(() => { socket.connect(); }, 100);
 
-      // 3. On remet toutes nos variables à zéro
+      // 2. On remet les variables à zéro (On redevient l'hôte par défaut)
       currentRoom = '';
-      isHost = false;
+      isHost = true; 
       
-      // 4. On vide le champ de texte pour ne pas garder l'ancien code affiché
+      // 3. NETTOYAGE VISUEL (C'est ça qui manquait !)
       document.getElementById('room-input').value = ''; 
+      document.getElementById('lobby-code-display').style.display = 'none'; // On cache l'ancien code
+      document.getElementById('host-settings-area').classList.remove('disabled-for-client'); // On dégrise le menu
+      document.getElementById('start-game-btn').style.display = 'inline-block'; // On réaffiche le bouton
+      document.getElementById('start-game-btn').innerText = "Créer / Rejoindre"; 
   }
 }
 
