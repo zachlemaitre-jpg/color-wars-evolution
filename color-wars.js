@@ -216,44 +216,16 @@ function goToMainMenu() {
   if (gameMode === 'online' && socket) {
       socket.disconnect();
       setTimeout(() => { socket.connect(); }, 150);
-      
-      // Reset variables de session
       currentRoom = '';
-      isHost = false;
-      
-      // Reset visuel immédiat
+      isHost = false; // Sera mis à jour par le serveur lors du prochain join
       document.getElementById('lobby-code-display').style.display = 'none';
-      document.getElementById('lobby-code-display').innerHTML = '';
       document.getElementById('room-input').value = '';
-  }
-}
-
-function goToMainMenu() {
-  document.getElementById('pregame-overlay').classList.add('hidden');
-  document.getElementById('main-menu-overlay').style.display = 'flex';
-
-  // --- Nettoyage complet du mode en ligne ---
-  if (gameMode === 'online' && socket) {
-      // 1. On se déconnecte pour détruire le salon côté serveur
-      socket.disconnect();
-      setTimeout(() => { socket.connect(); }, 100);
-
-      // 2. On remet les variables à zéro (On redevient l'hôte par défaut)
-      currentRoom = '';
-      isHost = true; 
-      
-      // 3. NETTOYAGE VISUEL (C'est ça qui manquait !)
-      document.getElementById('room-input').value = ''; 
-      document.getElementById('lobby-code-display').style.display = 'none'; // On cache l'ancien code
-      document.getElementById('host-settings-area').classList.remove('disabled-for-client'); // On dégrise le menu
-      document.getElementById('start-game-btn').style.display = 'inline-block'; // On réaffiche le bouton
-      document.getElementById('start-game-btn').innerText = "Créer / Rejoindre"; 
   }
 }
 
 function returnToLobby() {
     if (gameMode === 'local') {
-        goToMenu(); // Si local, revient à l'écran de config
+        selectMode('local'); // Si local, revient à l'écran de config
     } else if (isHost) {
         socket.emit('requestReturnToLobby', currentRoom);
     }
@@ -321,16 +293,23 @@ function buildGameUI() {
   const ctrlRow = document.createElement('div'); ctrlRow.className = 'controls-row';
   const ctrlBlock = document.createElement('div'); ctrlBlock.className = 'controls-block';
   
-  // En mode Online Spectateur, on cache le bouton "New Game"
-  if (myPlayerId !== 'spectator') {
-      ctrlBlock.innerHTML = `<button class="primary" onclick="resetGame()">New Game</button><button id="return-lobby-btn" onclick="returnToLobby()">← Salon</button><button onclick="openRulebook()">📖 Manuel</button>`;
+  // SEUL L'HÔTE voit le bouton "New Game"
+  if (isHost) {
+      ctrlBlock.innerHTML = `
+        <button class="primary" onclick="resetGame()">New Game</button>
+        <button id="return-lobby-btn" onclick="returnToLobby()">← Salon</button>
+        <button onclick="openRulebook()">📖 Manuel</button>`;
   } else {
-      ctrlBlock.innerHTML = `<button id="return-lobby-btn" onclick="returnToLobby()">← Salon</button><button onclick="openRulebook()">📖 Manuel</button>`;
+      // Les invités voient uniquement "Salon" et "Manuel"
+      ctrlBlock.innerHTML = `
+        <button id="return-lobby-btn" onclick="returnToLobby()">← Salon</button>
+        <button onclick="openRulebook()">📖 Manuel</button>`;
   }
   ctrlRow.appendChild(ctrlBlock);
 
-  const legendBlock = document.createElement('div'); legendBlock.className = 'legend-card';
-  legendBlock.innerHTML = `<div class="legend-title">Legend</div><div class="legend-item"><span class="pip shield" style="width:13px;height:13px;background:var(--shield);clip-path:polygon(50% 0%,100% 20%,100% 60%,50% 100%,0% 60%,0% 20%);border-radius:0;flex-shrink:0"></span>Shield: 1 hit</div><div class="legend-item"><span class="legend-dot" style="background:var(--bomb)"></span>Bomb: 3 turns</div><div class="legend-item"><span class="legend-wall"></span>Wall</div><div class="legend-item"><span class="legend-wall" style="background:#8c3d1a;border-color:#c8644a;opacity:0.75"></span>Breakable</div><div class="legend-item"><span class="legend-dot" style="background:#000;border:2px solid #333"></span>Black hole</div><div class="legend-item"><span class="legend-dot" style="background:rgba(100,60,180,0.6)"></span>Teleporter</div>`;
+  const legendBlock = document.createElement('div'); 
+  legendBlock.className = 'legend-card';
+  legendBlock.innerHTML = `<div class="legend-title">Legend</div><div class="legend-item"><span class="pip shield"></span>Shield: 1 hit</div><div class="legend-item"><span class="legend-dot" style="background:var(--bomb)"></span>Bomb: 3 turns</div><div class="legend-item"><span class="legend-wall"></span>Wall</div><div class="legend-item"><span class="legend-wall" style="background:#8c3d1a;border-color:#c8644a;opacity:0.75"></span>Breakable</div><div class="legend-item"><span class="legend-dot" style="background:#000;border:2px solid #333"></span>Black hole</div><div class="legend-item"><span class="legend-dot" style="background:rgba(100,60,180,0.6)"></span>Teleporter</div>`;
   ctrlRow.appendChild(legendBlock);
   gc.appendChild(ctrlRow);
 }
@@ -1348,81 +1327,57 @@ function updatePowerupUI() {
 }
 
 function resetGame() {
+  // SÉCURITÉ : Bloque les resquilleurs en ligne
+  if (gameMode === 'online' && !isHost) return;
+
+  // 1. Reset des variables globales
   gameCount++; gameOver = false; animating = false; turnCount = 0; selectedPowerup = 'normal';
   playerHasPlaced = {}; powerupStock = {}; tumorTrappedTurns = {};
   window.explosionProcessing = false; window.explosionQueue = []; activeProjectiles = 0;
-  
   currentBounds = { minR: 0, maxR: ROWS - 1, minC: 0, maxC: COLS - 1 };
 
+  // 2. Choix du Biome
   const biomeSelect = document.getElementById('biome-select');
   if (biomeSelect) currentBiome = biomeSelect.value;
   
+  // 3. Reset des Joueurs (Version complète)
   for (let p = 1; p <= playerCount; p++) {
-    playerHasPlaced[p] = false; tumorTrappedTurns[p] = 0; powerupStock[p] = {};
+    playerHasPlaced[p] = false; tumorTrappedTurns[p] = 0;
+    powerupStock[p] = {};
     if (bombsEnabled) powerupStock[p].bomb = MAX_BOMBS;
     if (shieldsEnabled) powerupStock[p].shield = MAX_SHIELDS;
     if (iceEnabled) powerupStock[p].ice = MAX_ICE;
   }
   
-  if (overgrowthEnabled) { if (currentBiome === 'wasteland') tumorScheduledTurn = 1; else tumorScheduledTurn = rnd(15, 100); } 
-  else tumorScheduledTurn = -1;
-  tumorSpawnTurn = -1; tumorActive = false;
-
-  lightningFired = false; lightningRetries = 0; lightningScheduledTurn = rnd(1, 100);
-  currentPlayer  = ((gameCount - 1) % playerCount) + 1;
-  document.getElementById('winner-overlay').className = '';
-  updatePowerupUI();
+  // 4. Événements (Tumeur & Foudre)
+  if (overgrowthEnabled) { 
+      tumorScheduledTurn = (currentBiome === 'wasteland') ? 1 : rnd(15, 100); 
+  } else tumorScheduledTurn = -1;
   
+  tumorSpawnTurn = -1; tumorActive = false;
+  lightningFired = false; lightningScheduledTurn = rnd(1, 100);
+  
+  // 5. Ordre de jeu
+  currentPlayer = ((gameCount - 1) % playerCount) + 1;
+  document.getElementById('winner-overlay').className = '';
+  
+  // 6. Reconstruction physique
   generateMap(); initGrid(); buildBoard();
   document.getElementById('board').className = currentBiome; 
   renderAll();
   
+  // 7. SYNCHRONISATION (Crucial pour le mode online)
+  if (gameMode === 'online' && isHost) {
+      socket.emit('saveMap', { room: currentRoom, grid: grid });
+  }
+
+  // 8. UI et Status
   const mi = document.getElementById('map-info');
-  if (mi) mi.textContent = `Biome: ${currentBiome.toUpperCase()} · Map ${gameCount} · ${COLS}x${ROWS} · ${mapHoles.length} holes · ${mapWalls.length} walls`;
-  updateStatusForTurn();
+  if (mi) mi.textContent = `Biome: ${currentBiome.toUpperCase()} · Map ${gameCount} · ${COLS}x${ROWS}`;
+  updateStatusForTurn(); updatePowerupUI();
 }
 
-// ==========================================
-// --- ECOUTES DU SERVEUR (MULTIJOUEUR) ---
-// ==========================================
-
-socket.on('gameStarted', (data) => {
-    myPlayerId = data.playerNum; // On mémorise si on est J1, J2, etc.
-    
-    document.getElementById('pregame-overlay').classList.add('hidden');
-    document.getElementById('game-title').style.display   = '';
-    document.getElementById('game-subtitle').style.display = '';
-    
-    // On affiche notre numéro de joueur en haut !
-    document.getElementById('game-subtitle').innerHTML = `SALLE : <strong style="color:var(--gold)">${currentRoom}</strong> - Vous êtes le <strong style="color:${P_LIGHT[myPlayerId]}">Joueur ${myPlayerId}</strong>`;
-    
-    document.getElementById('game-container').style.display = '';
-    buildGameUI();
-    
-    if (myPlayerId === 1) {
-        // Le Joueur 1 génère la carte et l'envoie à l'arbitre
-        resetGame();
-        socket.emit('saveMap', { room: currentRoom, grid: grid });
-    } else {
-        // Les autres joueurs chargent la partie, puis écrasent la carte avec celle de l'arbitre
-        resetGame();
-        if (data.grid) {
-            grid = data.grid;
-            buildBoard();
-            renderAll();
-        }
-    }
-});
-
-socket.on('loadMap', (sharedGrid) => {
-    grid = sharedGrid;
-    buildBoard();
-    renderAll();
-});
-
-// ==========================================
-// --- ECOUTES DU SERVEUR (MULTIJOUEUR) ---
-// ==========================================
+// ─── ÉCOUTES DU SERVEUR (MULTIJOUEUR) ─────────────────────────────────────────
 
 if (socket) {
     socket.on('lobbyJoined', (data) => {
@@ -1497,7 +1452,7 @@ if (socket) {
     });
 
     socket.on('returnToLobby', () => {
-        goToMenu(); // Réaffiche le salon
+        selectMode('online'); // Réaffiche le salon
         document.getElementById('lobby-code-display').style.display = 'block';
     });
 
