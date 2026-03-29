@@ -22,7 +22,8 @@ io.on('connection', (socket) => {
                 clients: [], 
                 settings: { playerCount: 3, gridSize: 'normal', biome: 'classic', toggles: {} }, 
                 grid: null,
-                isPlaying: false
+                isPlaying: false,
+                lastActivity: Date.now()
             };
         }
         
@@ -42,6 +43,17 @@ io.on('connection', (socket) => {
 
         // 📡 DIFFUSION : Nouveau joueur dans la salle
         io.to(roomCode).emit('playersUpdated', room.clients);
+
+        // --- Gestion des retardataires ---
+        // Si la partie est DÉJÀ en cours, on force l'invité en Spectateur instantanément
+        // plutôt que de le laisser bloqué sur l'écran du lobby indéfiniment.
+        if (room.isPlaying && !isHost) {
+            socket.emit('gameStarted', { playerNum: 'spectator', settings: room.settings });
+            // Envoi de l'état complet (grille + tour + stocks...) pour un affichage immédiatement correct
+            if (room.lastGameState) {
+                socket.emit('loadMap', room.lastGameState);
+            }
+        }
     });
 
     socket.on('createRoom', (data) => {
@@ -54,7 +66,8 @@ io.on('connection', (socket) => {
             clients: [{ id: socket.id, pseudo: pseudo }],
             settings: { playerCount: 3, gridSize: 'normal', biome: 'classic', toggles: {} },
             grid: null,
-            isPlaying: false
+            isPlaying: false,
+            lastActivity: Date.now()
         };
 
         socket.join(newRoomCode);
@@ -69,7 +82,8 @@ io.on('connection', (socket) => {
 
     socket.on('updateSettings', (data) => {
         const room = rooms[data.roomCode];
-        if (room && room.clients[0].id === socket.id) { // VÉRIF MIGRÉE (OBJET)
+        if (room && room.clients[0].id === socket.id) {
+            room.lastActivity = Date.now(); // TTL refresh
             room.settings = data.settings;
             socket.to(data.roomCode).emit('settingsChanged', room.settings);
             
@@ -95,13 +109,38 @@ io.on('connection', (socket) => {
     });
 
     socket.on('saveMap', (data) => {
-        if(rooms[data.room]) {
-            rooms[data.room].grid = data.grid;
-            socket.to(data.room).emit('loadMap', data.grid);
+        const room = rooms[data.room];
+        // SÉCURITÉ : Seul l'hôte (clients[0]) a le droit d'imposer l'état absolu du jeu
+        if (room && room.clients[0].id === socket.id) {
+            room.grid = data.grid;
+            room.lastGameState = data; // Sauvegarde l'état complet pour les retardataires
+            room.lastActivity = Date.now(); // TTL refresh
+            socket.to(data.room).emit('loadMap', data); 
+        } else {
+            console.warn(`⚠️ Tentative de triche bloquée : Le socket ${socket.id} a tenté de forcer une synchronisation globale.`);
         }
     });
 
     socket.on('playTurn', (data) => {
+        const room = rooms[data.room];
+        if (!room) return;
+        room.lastActivity = Date.now(); // TTL refresh
+
+        // V1.2 — Vérification d'identité : seul le joueur concerné (ou l'Hôte
+        // qui valide le coup d'un invité) peut émettre ce message.
+        const senderIndex = room.clients.findIndex(c => c.id === socket.id);
+        if (senderIndex === -1) return; // L'émetteur n'est pas dans la room
+
+        const isRoomHost = senderIndex === 0;
+        const senderPlayerNum = senderIndex + 1; // 1-indexé, aligné sur playerCount
+
+        // Accepté si : c'est l'hôte (source de vérité) OU si c'est bien le
+        // joueur dont le numéro correspond à data.player.
+        if (!isRoomHost && senderPlayerNum !== Number(data.player)) {
+            console.warn(`⚠️  Tentative de triche bloquée : socket ${socket.id} a voulu jouer en tant que joueur ${data.player}`);
+            return;
+        }
+
         io.to(data.room).emit('updateBoard', data);
     });
     
@@ -141,6 +180,25 @@ io.on('connection', (socket) => {
         }
     });
 });
+
+// ─── Garbage Collector ────────────────────────────────────────────────────────
+// Toutes les 10 minutes, on supprime les salons vides ou inactifs depuis 1h.
+// Couvre les cas de déconnexion brutale que le handler 'disconnect' ne détecte pas.
+const ONE_HOUR_MS = 3_600_000;
+setInterval(() => {
+    let deleted = 0;
+    const now = Date.now();
+    for (const roomCode in rooms) {
+        const room = rooms[roomCode];
+        const isEmpty = room.clients.length === 0;
+        const isStale = room.lastActivity && (now - room.lastActivity > ONE_HOUR_MS);
+        if (isEmpty || isStale) {
+            delete rooms[roomCode];
+            deleted++;
+        }
+    }
+    if (deleted > 0) console.log(`🧹 GC : ${deleted} salon(s) supprimé(s).`);
+}, 600_000);
 
 const PORT = process.env.PORT || 3000;
 http.listen(PORT, () => {

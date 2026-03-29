@@ -4,6 +4,7 @@ if (typeof io !== 'undefined') {
     socket = io(); // Ne se connecte que si le serveur est allumé
 }
 let gameMode = 'local'; // 'local' ou 'online'
+let myGlobalPseudo = 'Joueur'; // Stockage propre du pseudo
 let currentRoom = '';
 let myPlayerId = 1; // Stocke notre numéro de joueur (1, 2, 3 ou 4)
 let COLS = 10, ROWS = 8;
@@ -92,6 +93,14 @@ function verifyCurrentPlayerAlive() {
     attempts++;
     changed = true;
   }
+
+  // Si la boucle a fait un tour complet sans trouver de joueur valide,
+  // tous les joueurs sont morts simultanément → match nul global.
+  if (attempts >= playerCount && !canPlayerPlay(currentPlayer)) {
+    showWinner(0);
+    return;
+  }
+
   if (changed) {
     selectedPowerup = 'normal';
     updatePowerupUI();
@@ -180,21 +189,19 @@ function selectMode(mode) {
 }
 
 function startGame() {
-  // NOUVEAU : Récupération du pseudo
   let pseudoInput = document.getElementById('player-pseudo').value.trim();
-  let myPseudo = pseudoInput !== '' ? pseudoInput : 'Joueur';
+  // On sauvegarde le pseudo globalement pour ne plus avoir à lire le HTML caché !
+  myGlobalPseudo = pseudoInput !== '' ? pseudoInput : 'Joueur';
 
   if (gameMode === 'online') {
       if (currentRoom === '') {
           let roomInput = document.getElementById('room-input').value.trim();
           
           if (roomInput === '') {
-              // On envoie le pseudo lors de la création
-              socket.emit('createRoom', { pseudo: myPseudo }); 
+              socket.emit('createRoom', { pseudo: myGlobalPseudo }); 
           } else {
-              // On envoie le pseudo en rejoignant
               currentRoom = roomInput.toUpperCase();
-              socket.emit('joinRoom', { roomCode: currentRoom, pseudo: myPseudo }); 
+              socket.emit('joinRoom', { roomCode: currentRoom, pseudo: myGlobalPseudo }); 
           }
       } else if (isHost) {
           socket.emit('requestStartGame', { roomCode: currentRoom });
@@ -248,14 +255,24 @@ function closeHostTutorial() { document.getElementById('host-tutorial-overlay').
 function sendChatMessage() {
     const input = document.getElementById('chat-input');
     const msg = input.value.trim();
+    
     if (msg && currentRoom !== '') {
         let role = myPlayerId;
-        if (myPlayerId === 1 && !isHost && !gameOver && turnCount === 0) role = 'spectator';
         
-        let pseudoInput = document.getElementById('player-pseudo').value.trim();
-        let myPseudo = pseudoInput !== '' ? pseudoInput : 'Joueur';
+        // Si le salon (pregame-overlay) est visible, le jeu n'a pas commencé.
+        // L'hôte est le joueur 1, les autres sont des invités (spectateurs temporaires).
+        if (!document.getElementById('pregame-overlay').classList.contains('hidden')) {
+            role = isHost ? 1 : 'spectator';
+        }
         
-        socket.emit('sendChat', { room: currentRoom, sender: role, text: msg, pseudo: myPseudo });
+        // On utilise la variable globale au lieu de lire le DOM caché
+        socket.emit('sendChat', { 
+            room: currentRoom, 
+            sender: role, 
+            text: msg, 
+            pseudo: myGlobalPseudo 
+        });
+        
         input.value = '';
     }
 }
@@ -670,6 +687,21 @@ function renderAll() {
   updatePanels();
 }
 
+// --- Fonction de synchronisation absolue ---
+function syncGameState() {
+    if (gameMode === 'online' && isHost && socket) {
+        socket.emit('saveMap', {
+            room: currentRoom,
+            grid: grid,
+            currentPlayer: currentPlayer,
+            playerHasPlaced: playerHasPlaced,
+            gameCount: gameCount,
+            turnCount: turnCount,
+            powerupStock: powerupStock
+        });
+    }
+}
+
 function quitGame(p) {
   if (currentPlayer !== p || animating || gameOver) return;
   if (!confirm("Voulez-vous vraiment quitter la partie ? Toutes vos cases disparaitront.")) return;
@@ -848,7 +880,7 @@ function processExplosionQueue(initialQueue) {
           // Si c'était une explosion automatique (bombe, geyser, foudre),
           // l'Hôte impose sa version du plateau à tout le monde maintenant.
           if (gameMode === 'online' && isHost) {
-              socket.emit('saveMap', { room: currentRoom, grid: grid });
+              syncGameState();
           }
           return;
       }
@@ -1084,11 +1116,6 @@ function tickConveyors() {
 }
 
 function finalizeTurn() {
-  // --- SYNCHRONISATION FORCÉE ---
-  if (gameMode === 'online' && isHost) {
-      socket.emit('saveMap', { room: currentRoom, grid: grid });
-  }
-
   // LOGIQUE DE PASSAGE AU JOUEUR SUIVANT 
   let attempts = 0;
   do { 
@@ -1101,6 +1128,9 @@ function finalizeTurn() {
   updatePanels(); 
   updateStatusForTurn(); 
   checkWin();
+
+  // --- SYNCHRONISATION FORCÉE DEPLACÉE ICI (À LA FIN) ---
+  syncGameState();
 }
 
 function tickIce() {
@@ -1515,7 +1545,7 @@ function resetGame() {
   if (isHost || gameMode === 'local') {
       renderAll();
       if (gameMode === 'online') {
-          socket.emit('saveMap', { room: currentRoom, grid: grid });
+          syncGameState();
       }
   }
 
@@ -1681,7 +1711,7 @@ if (socket) {
         resetGame();
 
         if (isHost) {
-            socket.emit('saveMap', { room: currentRoom, grid: grid });
+            syncGameState();
         }
         
         if (myPlayerId === 'spectator') {
@@ -1692,7 +1722,7 @@ if (socket) {
         }
     });
 
-    socket.on('loadMap', (sharedGrid) => {
+    socket.on('loadMap', (data) => {
         if (!isHost) { 
             // ANTI-LAG : Si on reçoit la vérité absolue de l'Hôte mais qu'on était en train d'animer, on coupe tout pour rattraper notre retard.
             if (animating) {
@@ -1704,14 +1734,47 @@ if (socket) {
                 document.querySelectorAll('.flying-dot').forEach(el => el.remove());
             }
             
-            grid = sharedGrid; 
+            // --- MISE À JOUR : On écrase nos variables avec la vérité de l'Hôte ---
+            grid = data.grid || data; 
+            if (data.currentPlayer !== undefined) currentPlayer = data.currentPlayer;
+            if (data.playerHasPlaced !== undefined) playerHasPlaced = data.playerHasPlaced;
+            if (data.gameCount !== undefined) gameCount = data.gameCount;
+            if (data.turnCount !== undefined) turnCount = data.turnCount;
+            if (data.powerupStock !== undefined) powerupStock = data.powerupStock;
+
             renderAll(); 
+            updatePowerupUI(); // Met à jour le visuel des stocks
+            updateStatusForTurn(); // Met à jour le texte en bas
         }
     });
 
     socket.on('updateBoard', (data) => {
-        // On force 'data.player' en nombre avant de l'envoyer à executeTurn
-        executeTurn(data.r, data.c, Number(data.player), data.powerup);
+        const r = data.r, c = data.c, p = Number(data.player);
+
+        // L'Hôte est le videur : il vérifie la légalité du coup avant de l'exécuter.
+        // Les invités font confiance à l'état que l'Hôte leur synchronise.
+        if (isHost) {
+            const d = grid[r][c];
+            const isFree = !playerHasPlaced[p];
+
+            // Triche 1 : Placer sur une case non vide au premier tour
+            if (isFree && (d.owner !== 0 || d.dots.length > 0)) return;
+
+            if (!isFree) {
+                if (data.powerup === 'ice') {
+                    // Triche 2a : Cibler une case vide avec ice (rien à geler)
+                    if (d.dots.length === 0) return;
+                } else {
+                    // Triche 2b : Jouer sur la case d'un autre joueur
+                    if (d.owner !== p) return;
+                }
+            }
+
+            // Triche 3 : Jouer sur une case gelée ou détruite
+            if (d.isFrozen || d.isDestroyed) return;
+        }
+
+        executeTurn(r, c, p, data.powerup);
     });
 
     socket.on('returnToLobby', () => {
@@ -1746,7 +1809,7 @@ if (socket) {
         // Le nouvel Hôte impose immédiatement sa grille pour s'assurer
         // que tous les autres joueurs sont parfaitement synchronisés avec lui.
         if (gameMode === 'online' && !gameOver) {
-            socket.emit('saveMap', { room: currentRoom, grid: grid });
+            syncGameState();
         }
     });
 
@@ -1763,7 +1826,15 @@ if (socket) {
             authorName = P_NAME[data.sender] || data.pseudo; // Utilise le vrai pseudo
         }
 
-        msgDiv.innerHTML = `<span class="chat-author ${authorClass}">[${authorName}]</span><span class="chat-text">${data.text}</span>`;
+        // Création sécurisée des éléments (Anti-XSS) — NE PAS utiliser innerHTML ici
+        const authorSpan = document.createElement('span');
+        authorSpan.className = `chat-author ${authorClass}`;
+        authorSpan.textContent = `[${authorName}] `;
+        const textSpan = document.createElement('span');
+        textSpan.className = 'chat-text';
+        textSpan.textContent = data.text; // textContent échappe tout HTML malveillant
+        msgDiv.appendChild(authorSpan);
+        msgDiv.appendChild(textSpan);
         messagesContainer.appendChild(msgDiv);
         messagesContainer.scrollTop = messagesContainer.scrollHeight;
     });
