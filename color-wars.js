@@ -728,18 +728,31 @@ function openFusionModal(p) {
 
 function closeFusionModal() { document.getElementById('fusion-overlay').classList.add('hidden'); }
 
-function executeFusion(fromP, toP) {
-  closeFusionModal();
+// Logique réelle de la fusion, exécutée par tout le monde sur ordre du serveur
+function performFusionLogic(fromP, toP) {
   for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
       const d = grid[r][c];
       if (d.owner === fromP && !d.isDestroyed) {
-        d.owner = toP; d.dots.pop(); 
+        d.owner = toP; d.dots.pop();
+        // Migration des bombes posées par fromP pour ne pas perdre leur ownership
         d.dots.forEach(dot => { if (dot.type === 'bomb' && dot.bombPrevOwner === fromP) dot.bombPrevOwner = toP; });
         if (d.dots.length === 0) d.owner = 0;
       }
   }
-  playerHasPlaced[fromP] = true; setStatus(`${P_NAME[fromP]} a fusionné avec ${P_NAME[toP]} !`, 'info');
+  playerHasPlaced[fromP] = true;
+  setStatus(`${P_NAME[fromP]} a fusionné avec ${P_NAME[toP]} !`, 'info');
   renderAll(); checkWin(); if (!gameOver) advanceTurn();
+}
+
+function executeFusion(fromP, toP) {
+  closeFusionModal();
+  if (gameMode === 'online') {
+      // En ligne : on demande au serveur d'ordonner la fusion à tout le monde simultanément
+      socket.emit('requestFusion', { room: currentRoom, fromP: fromP, toP: toP });
+  } else {
+      // Local : exécution immédiate
+      performFusionLogic(fromP, toP);
+  }
 }
 
 function handleClick(r, c) {
@@ -917,7 +930,7 @@ function processExplosionQueue(initialQueue) {
   next();
 }
 
-function landDot(r, c, owner, dtype, queue, dr = 0, dc = 0) {
+function landDot(r, c, owner, dtype, queue, dr = 0, dc = 0, isRemoteOrder = false) {
   const d = grid[r][c];
   if (d.isDestroyed || d.isFrozen) return;
 
@@ -956,12 +969,27 @@ function landDot(r, c, owner, dtype, queue, dr = 0, dc = 0) {
   }
 
   if (d.type === 'teleporter' || d.type === 'teleporter-a' || d.type === 'teleporter-b') {
-    const el = document.getElementById(`cell-${r}-${c}`);
-    if (el) { el.classList.add('tele-flash'); setTimeout(() => el.classList.remove('tele-flash'), 500); }
-    const dest = randomTeleportDest();
-    if (!dest) return;
-    landDot(dest[0], dest[1], owner, dtype, queue, dr, dc);
-    return;
+    // Si c'est un ordre distant de l'Hôte, on ignore la logique de TP (on est déjà arrivé)
+    if (isRemoteOrder) {
+        // On ne fait rien ici, le code continuera après le bloc IF pour poser le point normalement
+    } else {
+        const el = document.getElementById(`cell-${r}-${c}`);
+        if (el) { el.classList.add('tele-flash'); setTimeout(() => el.classList.remove('tele-flash'), 500); }
+
+        if (isHost || gameMode === 'local') {
+            const dest = randomTeleportDest();
+            if (!dest) return;
+            
+            // On prévient immédiatement les invités du lieu d'atterrissage
+            if (gameMode === 'online') {
+                socket.emit('teleportEvent', { room: currentRoom, tr: dest[0], tc: dest[1], owner, dtype, dr, dc });
+            }
+            
+            landDot(dest[0], dest[1], owner, dtype, queue, dr, dc);
+        }
+        // L'invité (non-hôte) s'arrête là et attend le message 'executeTeleport' pour animer
+        return; 
+    }
   }
 
   if (d.owner !== 0 && d.owner !== owner) {
@@ -1042,15 +1070,16 @@ function animateSuckIn(cx, cy, player, dtype, cb) {
 
 // ─── End Turn Mechanics ───────────────────────────────────────────────────────
 function advanceTurn() {
+  if (gameMode === 'online' && !isHost) return; // L'invité attend le loadMap de l'Hôte
+
   turnCount++;
   tickIce(); 
   
-  // SEUL L'HÔTE calcule l'aléatoire
-  if (isHost) {
+  if (isHost || gameMode === 'local') {
       tickBombs();
       checkLightningStrike();
       handleTumorLogic(); 
-      tickTumorTraps(); // <-- On compte les prisonniers
+      tickTumorTraps(); 
       tickGeysers();
       tickConveyors();
   }
@@ -1609,17 +1638,13 @@ if (socket) {
         const container = document.getElementById('connected-players-container');
         container.innerHTML = '';
         
-        // 1. Réinitialiser les noms par défaut pour éviter les fantômes
         for(let i=1; i<=6; i++) P_NAME[i] = `Player ${i}`;
 
-        // 2. Mettre à jour l'interface du salon et les noms globaux
         playersList.forEach((p, index) => {
             const playerNum = index + 1;
-            const isSpectator = playerNum > playerCount; // Dépend des réglages de l'Hôte
+            const isSpectator = playerNum > playerCount;
             
-            if (!isSpectator) {
-                P_NAME[playerNum] = p.pseudo; // Met à jour le dictionnaire global du jeu !
-            }
+            if (!isSpectator) P_NAME[playerNum] = p.pseudo;
 
             const badge = document.createElement('div');
             badge.style.cssText = "padding: 5px 10px; border-radius: 8px; font-family: 'Space Mono', monospace; font-size: 0.8rem; font-weight: bold;";
@@ -1634,10 +1659,19 @@ if (socket) {
                 badge.style.color = P_LIGHT[playerNum];
                 badge.innerText = `J${playerNum} : ${p.pseudo}`;
             }
-            if (index === 0) badge.innerText = `👑 ${p.pseudo}`; // Couronne pour l'Hôte
+            if (index === 0) badge.innerText = `👑 ${p.pseudo}`;
             
             container.appendChild(badge);
         });
+
+        // Mise à jour des noms en jeu (avec les bons backticks ` `)
+        if (document.getElementById('game-container').style.display !== 'none') {
+            playersList.forEach((p, index) => {
+                const pNum = index + 1;
+                const nameEl = document.querySelector(`#p${pNum}-card .player-name`);
+                if (nameEl) nameEl.textContent = p.pseudo;
+            });
+        }
     });
 
     socket.on('settingsChanged', (settings) => {
@@ -1724,17 +1758,18 @@ if (socket) {
 
     socket.on('loadMap', (data) => {
         if (!isHost) { 
-            // ANTI-LAG : Si on reçoit la vérité absolue de l'Hôte mais qu'on était en train d'animer, on coupe tout pour rattraper notre retard.
-            if (animating) {
+            // --- 1. GESTION DU LAG VISUEL ---
+            // On ne réinitialise les animations que si on est "bloqué" 
+            // (c'est-à-dire si le jeu croit animer mais que plus rien ne bouge)
+            if (animating && window.explosionQueue.length === 0) {
                 animating = false;
                 window.explosionProcessing = false;
-                window.explosionQueue = [];
                 activeProjectiles = 0;
-                // On nettoie les points volants bloqués à l'écran
                 document.querySelectorAll('.flying-dot').forEach(el => el.remove());
             }
             
-            // --- MISE À JOUR : On écrase nos variables avec la vérité de l'Hôte ---
+            // --- 2. SYNCHRONISATION DES VARIABLES ---
+            // On écrase nos variables locales par la "vérité" reçue de l'Hôte
             grid = data.grid || data; 
             if (data.currentPlayer !== undefined) currentPlayer = data.currentPlayer;
             if (data.playerHasPlaced !== undefined) playerHasPlaced = data.playerHasPlaced;
@@ -1742,9 +1777,16 @@ if (socket) {
             if (data.turnCount !== undefined) turnCount = data.turnCount;
             if (data.powerupStock !== undefined) powerupStock = data.powerupStock;
 
-            renderAll(); 
-            updatePowerupUI(); // Met à jour le visuel des stocks
-            updateStatusForTurn(); // Met à jour le texte en bas
+            // --- 3. RENDU INTELLIGENT ---
+            // On ne redessine TOUT le plateau que si on n'est pas en train d'animer.
+            // Cela évite le "clignotement" désagréable pendant que les points volent.
+            if (!animating) {
+                renderAll(); 
+            }
+            
+            // On met à jour l'interface (stocks, noms, messages)
+            updatePowerupUI(); 
+            updateStatusForTurn(); 
         }
     });
 
@@ -1810,6 +1852,19 @@ if (socket) {
         // que tous les autres joueurs sont parfaitement synchronisés avec lui.
         if (gameMode === 'online' && !gameOver) {
             syncGameState();
+        }
+    });
+
+    socket.on('fusionExecuted', (data) => {
+        performFusionLogic(data.fromP, data.toP);
+    });
+
+    socket.on('executeTeleport', (data) => {
+        // Le 'true' à la fin indique à landDot qu'il s'agit d'un ordre distant
+        landDot(data.tr, data.tc, data.owner, data.dtype, window.explosionQueue, data.dr, data.dc, true);
+        
+        if (!window.explosionProcessing && window.explosionQueue.length > 0) {
+            processExplosionQueue();
         }
     });
 

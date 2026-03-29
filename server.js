@@ -134,16 +134,29 @@ io.on('connection', (socket) => {
         const isRoomHost = senderIndex === 0;
         const senderPlayerNum = senderIndex + 1; // 1-indexé, aligné sur playerCount
 
-        // Accepté si : c'est l'hôte (source de vérité) OU si c'est bien le
-        // joueur dont le numéro correspond à data.player.
-        if (!isRoomHost && senderPlayerNum !== Number(data.player)) {
-            console.warn(`⚠️  Tentative de triche bloquée : socket ${socket.id} a voulu jouer en tant que joueur ${data.player}`);
+        // Strict : Personne ne peut jouer pour quelqu'un d'autre, même l'Hôte.
+        if (senderPlayerNum !== Number(data.player)) {
+            console.warn(`⚠️  Tentative de triche bloquée : socket ${socket.id} a tenté de jouer pour le joueur ${data.player}`);
             return;
         }
 
         io.to(data.room).emit('updateBoard', data);
     });
     
+    socket.on('teleportEvent', (data) => {
+        // data = { room, tr, tc, owner, dtype, dr, dc }
+        socket.to(data.room).emit('executeTeleport', data);
+    });
+
+    socket.on('requestFusion', (data) => {
+        // On vérifie que l'émetteur est bien dans la room avant de relayer
+        const room = rooms[data.room];
+        if (room && room.clients.find(c => c.id === socket.id)) {
+            room.lastActivity = Date.now();
+            io.to(data.room).emit('fusionExecuted', data);
+        }
+    });
+
     socket.on('sendChat', (data) => {
         io.to(data.room).emit('chatMessage', {
             sender: data.sender,
