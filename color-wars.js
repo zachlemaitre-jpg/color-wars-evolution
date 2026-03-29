@@ -180,24 +180,26 @@ function selectMode(mode) {
 }
 
 function startGame() {
+  // NOUVEAU : Récupération du pseudo
+  let pseudoInput = document.getElementById('player-pseudo').value.trim();
+  let myPseudo = pseudoInput !== '' ? pseudoInput : 'Joueur';
+
   if (gameMode === 'online') {
       if (currentRoom === '') {
           let roomInput = document.getElementById('room-input').value.trim();
           
           if (roomInput === '') {
-              // On ne génère plus de Math.random() ici !
-              // On demande gentiment au serveur de créer un salon unique.
-              socket.emit('createRoom'); 
+              // On envoie le pseudo lors de la création
+              socket.emit('createRoom', { pseudo: myPseudo }); 
           } else {
-              // On rejoint un salon existant
+              // On envoie le pseudo en rejoignant
               currentRoom = roomInput.toUpperCase();
-              socket.emit('joinRoom', currentRoom); 
+              socket.emit('joinRoom', { roomCode: currentRoom, pseudo: myPseudo }); 
           }
       } else if (isHost) {
           socket.emit('requestStartGame', { roomCode: currentRoom });
       }
   } else {
-      // Mode Local (inchangé)
       document.getElementById('pregame-overlay').classList.add('hidden');
       document.getElementById('game-title').style.display   = '';
       document.getElementById('game-subtitle').style.display = '';
@@ -211,6 +213,10 @@ function startGame() {
 function goToMainMenu() {
   document.getElementById('pregame-overlay').classList.add('hidden');
   document.getElementById('main-menu-overlay').style.display = 'flex';
+
+  // --- CACHER ET VIDER LE CHAT ---
+  document.getElementById('chat-wrapper').classList.add('hidden');
+  document.getElementById('chat-messages').innerHTML = '';
 
   // --- On s'assure de ne plus être spectateur en revenant au menu ---
   myPlayerId = 1; 
@@ -237,6 +243,32 @@ function openRulebook() { document.getElementById('rulebook-overlay').classList.
 function closeRulebook() { document.getElementById('rulebook-overlay').classList.add('hidden'); }
 function openHostTutorial() { document.getElementById('host-tutorial-overlay').classList.remove('hidden'); }
 function closeHostTutorial() { document.getElementById('host-tutorial-overlay').classList.add('hidden'); }
+
+// ─── Chat Logic ───────────────────────────────────────────────────────────────
+function sendChatMessage() {
+    const input = document.getElementById('chat-input');
+    const msg = input.value.trim();
+    if (msg && currentRoom !== '') {
+        let role = myPlayerId;
+        if (myPlayerId === 1 && !isHost && !gameOver && turnCount === 0) role = 'spectator';
+        
+        let pseudoInput = document.getElementById('player-pseudo').value.trim();
+        let myPseudo = pseudoInput !== '' ? pseudoInput : 'Joueur';
+        
+        socket.emit('sendChat', { room: currentRoom, sender: role, text: msg, pseudo: myPseudo });
+        input.value = '';
+    }
+}
+
+// Écoute de la touche Entrée
+document.addEventListener('DOMContentLoaded', () => {
+    const chatInput = document.getElementById('chat-input');
+    if(chatInput) {
+        chatInput.addEventListener('keypress', function (e) {
+            if (e.key === 'Enter') sendChatMessage();
+        });
+    }
+});
 
 // ─── Dynamic UI builder ───────────────────────────────────────────────────────
 function buildGameUI() {
@@ -1502,10 +1534,15 @@ if (socket) {
         
         document.getElementById('pregame-overlay').classList.remove('hidden');
         document.getElementById('main-menu-overlay').style.display = 'none';
+
+        // --- AFFICHER LE CHAT ---
+        document.getElementById('chat-wrapper').classList.remove('hidden');
         
         const codeDisplay = document.getElementById('lobby-code-display');
         codeDisplay.style.display = 'block';
         
+        document.getElementById('lobby-players-list').style.display = 'flex';
+
         if (!isHost) {
             document.getElementById('host-settings-area').classList.add('disabled-for-client');
             document.getElementById('start-game-btn').style.display = 'none';
@@ -1536,6 +1573,41 @@ if (socket) {
             document.getElementById('start-game-btn').style.display = 'inline-block';
             codeDisplay.innerHTML = `SALON : <strong>${currentRoom}</strong> <span class="spectator-badge" style="background:var(--gold);color:#000;">Vous êtes l'Hôte</span>`;
         }
+    });
+
+    socket.on('playersUpdated', (playersList) => {
+        const container = document.getElementById('connected-players-container');
+        container.innerHTML = '';
+        
+        // 1. Réinitialiser les noms par défaut pour éviter les fantômes
+        for(let i=1; i<=6; i++) P_NAME[i] = `Player ${i}`;
+
+        // 2. Mettre à jour l'interface du salon et les noms globaux
+        playersList.forEach((p, index) => {
+            const playerNum = index + 1;
+            const isSpectator = playerNum > playerCount; // Dépend des réglages de l'Hôte
+            
+            if (!isSpectator) {
+                P_NAME[playerNum] = p.pseudo; // Met à jour le dictionnaire global du jeu !
+            }
+
+            const badge = document.createElement('div');
+            badge.style.cssText = "padding: 5px 10px; border-radius: 8px; font-family: 'Space Mono', monospace; font-size: 0.8rem; font-weight: bold;";
+            
+            if (isSpectator) {
+                badge.style.background = "rgba(255,255,255,0.05)";
+                badge.style.color = "var(--muted)";
+                badge.innerText = `👁️ ${p.pseudo}`;
+            } else {
+                badge.style.background = "rgba(255,255,255,0.05)";
+                badge.style.border = `1px solid ${P_COLOR[playerNum]}`;
+                badge.style.color = P_LIGHT[playerNum];
+                badge.innerText = `J${playerNum} : ${p.pseudo}`;
+            }
+            if (index === 0) badge.innerText = `👑 ${p.pseudo}`; // Couronne pour l'Hôte
+            
+            container.appendChild(badge);
+        });
     });
 
     socket.on('settingsChanged', (settings) => {
@@ -1676,5 +1748,23 @@ if (socket) {
         if (gameMode === 'online' && !gameOver) {
             socket.emit('saveMap', { room: currentRoom, grid: grid });
         }
+    });
+
+    socket.on('chatMessage', (data) => {
+        const messagesContainer = document.getElementById('chat-messages');
+        const msgDiv = document.createElement('div');
+        msgDiv.className = 'chat-msg';
+        
+        let authorClass = 'spectator';
+        let authorName = data.pseudo || 'Spectateur';
+        
+        if (data.sender !== 'spectator') {
+            authorClass = `p${data.sender}`;
+            authorName = P_NAME[data.sender] || data.pseudo; // Utilise le vrai pseudo
+        }
+
+        msgDiv.innerHTML = `<span class="chat-author ${authorClass}">[${authorName}]</span><span class="chat-text">${data.text}</span>`;
+        messagesContainer.appendChild(msgDiv);
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
     });
 }

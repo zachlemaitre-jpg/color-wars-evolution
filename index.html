@@ -12,6 +12,10 @@
   <div class="pregame-title" style="font-size: clamp(3rem, 8vw, 5rem);">Color Wars</div>
   <div class="pregame-subtitle">Sélectionnez le mode de jeu</div>
   
+  <div style="margin: 10px 0;">
+    <input type="text" id="player-pseudo" placeholder="Votre Pseudo" autocomplete="off" style="padding: 12px 20px; border-radius: 12px; border: 2px solid var(--p2-light); background: var(--panel); color: white; text-align: center; font-family: 'Space Mono', monospace; font-size: 1.2rem; width: 250px;">
+  </div>
+  
   <div style="display: flex; gap: 20px; flex-wrap: wrap; justify-content: center;">
     <button class="start-btn" onclick="selectMode('local')">Local (Même écran)</button>
     <button class="start-btn" onclick="selectMode('online')">En Ligne (Multijoueur)</button>
@@ -27,6 +31,11 @@
   <div class="pregame-subtitle">Chain Reaction · Strategic Edition</div>
 
   <div id="lobby-code-display" class="lobby-room-code" style="display:none;"></div>
+
+  <div id="lobby-players-list" style="display: none; flex-direction: column; gap: 8px; background: rgba(0,0,0,0.3); padding: 15px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); width: 100%; max-width: 500px;">
+    <h3 style="color: var(--gold); font-family: 'Space Mono', monospace; font-size: 0.9rem; text-align: center; margin-bottom: 5px; text-transform: uppercase;">Joueurs Connectés</h3>
+    <div id="connected-players-container" style="display: flex; flex-wrap: wrap; justify-content: center; gap: 10px;"></div>
+  </div>
 
   <div id="host-settings-area" style="display: flex; flex-direction: column; align-items: center; gap: 24px; width: 100%;">
     
@@ -230,6 +239,15 @@
       </ul>
 
     </div>
+  </div>
+</div>
+
+<div id="chat-wrapper" class="hidden">
+  <div id="chat-header">Mini-Chat</div>
+  <div id="chat-messages"></div>
+  <div id="chat-input-area">
+    <input type="text" id="chat-input" placeholder="Message..." autocomplete="off">
+    <button id="chat-send-btn" onclick="sendChatMessage()">➤</button>
   </div>
 </div>
 

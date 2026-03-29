@@ -10,10 +10,13 @@ let rooms = {};
 io.on('connection', (socket) => {
     console.log('🟢 Connexion:', socket.id);
 
-    socket.on('joinRoom', (roomCode) => {
+    socket.on('joinRoom', (data) => {
+        // Rétrocompatibilité au cas où (si data est une simple string)
+        let roomCode = typeof data === 'string' ? data : data.roomCode;
+        let pseudo = typeof data === 'string' ? 'Invité' : data.pseudo;
+
         socket.join(roomCode);
         
-        // Initialisation de la salle si elle n'existe pas
         if (!rooms[roomCode]) {
             rooms[roomCode] = {
                 clients: [], 
@@ -24,27 +27,31 @@ io.on('connection', (socket) => {
         }
         
         const room = rooms[roomCode];
-        if (!room.clients.includes(socket.id)) room.clients.push(socket.id);
+        // On vérifie si l'id n'est pas déjà dans la liste (reconnexion)
+        if (!room.clients.find(c => c.id === socket.id)) {
+            room.clients.push({ id: socket.id, pseudo: pseudo });
+        }
 
-        // Le premier arrivé est l'Hôte
-        const isHost = room.clients[0] === socket.id;
+        const isHost = room.clients[0].id === socket.id;
         
         socket.emit('lobbyJoined', {
             roomCode: roomCode,
             isHost: isHost,
             settings: room.settings
         });
+
+        // 📡 DIFFUSION : Nouveau joueur dans la salle
+        io.to(roomCode).emit('playersUpdated', room.clients);
     });
 
-    // Création de salon sécurisée côté serveur
-    socket.on('createRoom', () => {
+    socket.on('createRoom', (data) => {
         let newRoomCode;
+        let pseudo = data && data.pseudo ? data.pseudo : 'Hôte';
         
-        // CORRECTION : On vérifie l'unicité directement dans notre objet 'rooms'
         while (rooms[newRoomCode = Math.random().toString(36).substring(2, 8).toUpperCase()]);
 
         rooms[newRoomCode] = {
-            clients: [socket.id],
+            clients: [{ id: socket.id, pseudo: pseudo }],
             settings: { playerCount: 3, gridSize: 'normal', biome: 'classic', toggles: {} },
             grid: null,
             isPlaying: false
@@ -56,36 +63,37 @@ io.on('connection', (socket) => {
             isHost: true,
             settings: rooms[newRoomCode].settings
         });
+
+        io.to(newRoomCode).emit('playersUpdated', rooms[newRoomCode].clients);
     });
 
-    // 🔄 Synchronisation du Salon (Seul l'hôte a le droit)
     socket.on('updateSettings', (data) => {
         const room = rooms[data.roomCode];
-        if (room && room.clients[0] === socket.id) {
+        if (room && room.clients[0].id === socket.id) { // VÉRIF MIGRÉE (OBJET)
             room.settings = data.settings;
-            // Diffuse les réglages à tous les autres clients du salon
             socket.to(data.roomCode).emit('settingsChanged', room.settings);
+            
+            // On renvoie la liste des joueurs car le changement de playerCount 
+            // modifie le statut "Joueur/Spectateur" dans l'UI du lobby
+            io.to(data.roomCode).emit('playersUpdated', room.clients);
         }
     });
 
-    // 🚀 Lancement de la partie
     socket.on('requestStartGame', (data) => {
         const room = rooms[data.roomCode];
-        if (room && room.clients[0] === socket.id) {
+        if (room && room.clients[0].id === socket.id) { // VÉRIF MIGRÉE
             room.isPlaying = true;
             
-            // Distribution des Rôles
-            room.clients.forEach((clientId, index) => {
+            room.clients.forEach((client, index) => {
                 let role = 'spectator';
                 if (index < room.settings.playerCount) {
-                    role = index + 1; // Joueur 1 à 6
+                    role = index + 1; 
                 }
-                io.to(clientId).emit('gameStarted', { playerNum: role, settings: room.settings });
+                io.to(client.id).emit('gameStarted', { playerNum: role, settings: room.settings });
             });
         }
     });
 
-    // Mécaniques de jeu (inchangées)
     socket.on('saveMap', (data) => {
         if(rooms[data.room]) {
             rooms[data.room].grid = data.grid;
@@ -96,11 +104,18 @@ io.on('connection', (socket) => {
     socket.on('playTurn', (data) => {
         io.to(data.room).emit('updateBoard', data);
     });
+    
+    socket.on('sendChat', (data) => {
+        io.to(data.room).emit('chatMessage', {
+            sender: data.sender,
+            text: data.text,
+            pseudo: data.pseudo // Vient d'être ajouté côté client
+        });
+    });
 
-    // 🔙 Retour au salon post-partie
     socket.on('requestReturnToLobby', (roomCode) => {
         const room = rooms[roomCode];
-        if (room && room.clients[0] === socket.id) {
+        if (room && room.clients[0].id === socket.id) { // VÉRIF MIGRÉE
             room.isPlaying = false;
             io.to(roomCode).emit('returnToLobby');
         }
@@ -109,14 +124,18 @@ io.on('connection', (socket) => {
     socket.on('disconnect', () => {
         for (const roomCode in rooms) {
             const room = rooms[roomCode];
-            const index = room.clients.indexOf(socket.id);
+            // Recherche de l'index via la propriété id
+            const index = room.clients.findIndex(c => c.id === socket.id); 
             if (index !== -1) {
                 room.clients.splice(index, 1);
                 if (room.clients.length === 0) {
-                    delete rooms[roomCode]; // Détruit la salle si vide
-                } else if (index === 0) {
-                    // Si l'Hôte part, le Joueur 2 devient l'Hôte
-                    io.to(room.clients[0]).emit('hostMigrated');
+                    delete rooms[roomCode]; 
+                } else {
+                    if (index === 0) {
+                        io.to(room.clients[0].id).emit('hostMigrated');
+                    }
+                    // 📡 DIFFUSION : Un joueur a quitté
+                    io.to(roomCode).emit('playersUpdated', room.clients);
                 }
             }
         }
