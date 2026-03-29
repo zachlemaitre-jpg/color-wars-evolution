@@ -20,6 +20,7 @@ body {
 }
 body.turn-p1 { background-color: #2b1115; } body.turn-p2 { background-color: #111a2b; }
 body.turn-p3 { background-color: #112b18; } body.turn-p4 { background-color: #2b2811; }
+body.turn-p5 { background-color: #2b1120; } body.turn-p6 { background-color: #0f2b2b; }
 
 h1 {
   font-family: 'Space Mono', monospace; font-size: clamp(1.2rem, 3vw, 2rem); letter-spacing: 0.15em; text-transform: uppercase;
