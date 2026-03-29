@@ -1510,10 +1510,28 @@ if (socket) {
             document.getElementById('host-settings-area').classList.add('disabled-for-client');
             document.getElementById('start-game-btn').style.display = 'none';
             codeDisplay.innerHTML = `SALON : <strong>${currentRoom}</strong> <span class="spectator-badge">En attente de l'hôte...</span>`;
-            // Appliquer les settings reçus
+            
+            // --- On applique TOUS les réglages de l'hôte dès l'arrivée ---
+            currentBiome = data.settings.biome;
+            document.getElementById('biome-select').value = data.settings.biome;
+            
+            if (data.settings.toggles) {
+                lightningEnabled = data.settings.toggles.lightning;
+                overgrowthEnabled = data.settings.toggles.overgrowth;
+                blackHolesEnabled = data.settings.toggles.blackHoles;
+                wallsEnabled = data.settings.toggles.walls;
+                teleportersEnabled = data.settings.toggles.teleporters;
+                shieldsEnabled = data.settings.toggles.shields;
+                bombsEnabled = data.settings.toggles.bombs;
+                iceEnabled = data.settings.toggles.ice;
+                sismicEnabled = data.settings.toggles.sismic;
+            }
+
             selectPlayerCount(data.settings.playerCount);
             selectGridSize(data.settings.gridSize);
+            
         } else {
+            // --- POUR L'HÔTE ---
             document.getElementById('host-settings-area').classList.remove('disabled-for-client');
             document.getElementById('start-game-btn').style.display = 'inline-block';
             codeDisplay.innerHTML = `SALON : <strong>${currentRoom}</strong> <span class="spectator-badge" style="background:var(--gold);color:#000;">Vous êtes l'Hôte</span>`;
@@ -1570,7 +1588,12 @@ if (socket) {
         } else {
             myPlayerId = Number(data.playerNum);
         }
-        
+
+        // --- Sécurité pour forcer le biome ---
+        if (data.settings && data.settings.biome) {
+            currentBiome = data.settings.biome;
+        }
+
         document.getElementById('pregame-overlay').classList.add('hidden');
         document.getElementById('game-title').style.display = '';
         document.getElementById('game-subtitle').style.display = '';
