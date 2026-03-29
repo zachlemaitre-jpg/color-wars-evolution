@@ -125,10 +125,14 @@
 <p class="subtitle" id="game-subtitle" style="display:none">Chain Reaction · Strategic Edition</p>
 <div class="game-container" id="game-container" style="display:none"></div>
 
-<div id="winner-overlay" class="hidden">
-  <h2 id="winner-text">Player X wins!</h2>
-  <button class="primary" onclick="resetGame()">Play again</button>
-  <button class="primary" style="margin-top: 10px;" onclick="returnToLobby()">Retour au Salon</button>
+<div id="winner-overlay" class="">
+  <div class="winner-content">
+    <h1 id="winner-text">Player X wins!</h1>
+    <div class="winner-buttons">
+      <button id="replay-btn" class="primary" onclick="resetGame()">Play Again</button>
+      <button id="winner-lobby-btn" onclick="returnToLobby()">Retour au Salon</button>
+    </div>
+  </div>
 </div>
 
 <div id="fusion-overlay" class="hidden">

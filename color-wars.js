@@ -185,16 +185,15 @@ function startGame() {
           let roomInput = document.getElementById('room-input').value.trim();
           
           if (roomInput === '') {
-              // 1. Si le champ est vide, on GÉNÈRE un code unique (ex: KX29)
-              currentRoom = Math.random().toString(36).substring(2, 6).toUpperCase();
+              // On ne génère plus de Math.random() ici !
+              // On demande gentiment au serveur de créer un salon unique.
+              socket.emit('createRoom'); 
           } else {
-              // 2. Si le champ est rempli, on utilise le code tapé pour REJOINDRE
+              // On rejoint un salon existant
               currentRoom = roomInput.toUpperCase();
+              socket.emit('joinRoom', currentRoom); 
           }
-          
-          socket.emit('joinRoom', currentRoom); 
       } else if (isHost) {
-          // Si on est déjà dans le salon et qu'on est l'hôte, on lance !
           socket.emit('requestStartGame', { roomCode: currentRoom });
       }
   } else {
@@ -212,6 +211,9 @@ function startGame() {
 function goToMainMenu() {
   document.getElementById('pregame-overlay').classList.add('hidden');
   document.getElementById('main-menu-overlay').style.display = 'flex';
+
+  // --- On s'assure de ne plus être spectateur en revenant au menu ---
+  myPlayerId = 1; 
 
   if (gameMode === 'online' && socket) {
       socket.disconnect();
@@ -684,7 +686,11 @@ function handleClick(r, c) {
 
   const d = grid[r][c];
   if (d.isDestroyed) return;
-  if (d.type !== 'normal' && d.type !== 'ice-floor' && !d.type.startsWith('conveyor')) return;
+  
+  // --- On autorise le clic sur les geysers ---
+  if (d.type !== 'normal' && d.type !== 'ice-floor' && !d.type.startsWith('conveyor') && d.type !== 'geyser') {
+      return; 
+  }
   
   const isFree = !playerHasPlaced[currentPlayer];
 
@@ -980,6 +986,7 @@ function advanceTurn() {
       tickBombs();
       checkLightningStrike();
       handleTumorLogic(); 
+      tickTumorTraps(); // <-- On compte les prisonniers
       tickGeysers();
       tickConveyors();
   }
@@ -1118,6 +1125,54 @@ function handleTumorLogic() {
     if (turnsSinceSpawn > 0 && turnsSinceSpawn % 10 === 0) drainTumorCells();
     if (turnsSinceSpawn > 0 && turnsSinceSpawn % 25 === 0) expandTumor();
   }
+}
+
+function tickTumorTraps() {
+    if (!tumorActive) {
+        // Si la tumeur n'est plus là, on remet les compteurs à zéro
+        for (let p = 1; p <= playerCount; p++) tumorTrappedTurns[p] = 0;
+        return;
+    }
+
+    for (let p = 1; p <= playerCount; p++) {
+        if (isPlayerDead(p)) continue;
+
+        let hasCells = false;
+        let allInfected = true;
+
+        // On vérifie les cases du joueur
+        for (let r = 0; r < ROWS; r++) {
+            for (let c = 0; c < COLS; c++) {
+                if (grid[r][c].owner === p && !grid[r][c].isDestroyed) {
+                    hasCells = true;
+                    if (!grid[r][c].isContaminated) {
+                        allInfected = false; // Il a au moins une case saine !
+                    }
+                }
+            }
+        }
+
+        // S'il n'a QUE des cases infectées...
+        if (hasCells && allInfected) {
+            tumorTrappedTurns[p]++;
+            if (tumorTrappedTurns[p] >= 3) {
+                // Élimination fatale !
+                setStatus(`${P_NAME[p]} a été digéré par la Tumeur !`, 'warn');
+                for (let r = 0; r < ROWS; r++) {
+                    for (let c = 0; c < COLS; c++) {
+                        if (grid[r][c].owner === p) {
+                            grid[r][c].owner = 0;
+                            grid[r][c].dots = [];
+                            renderCell(r, c);
+                        }
+                    }
+                }
+            }
+        } else {
+            // S'il a réussi à s'échapper sur une case saine, on remet à zéro
+            tumorTrappedTurns[p] = 0; 
+        }
+    }
 }
 
 function destroyTumor() {
@@ -1270,12 +1325,40 @@ function checkWin() {
 }
 
 function showWinner(p) {
-  gameOver = true; const ov = document.getElementById('winner-overlay');
-  document.body.classList.remove('turn-p1', 'turn-p2', 'turn-p3', 'turn-p4');
+  gameOver = true; 
+  const ov = document.getElementById('winner-overlay');
+  document.body.classList.remove('turn-p1', 'turn-p2', 'turn-p3', 'turn-p4', 'turn-p5', 'turn-p6');
   if (p !== 0) document.body.classList.add(`turn-p${p}`);
   
-  if (p === 0) { ov.className = `show`; document.getElementById('winner-text').textContent = `IT'S A DRAW!`; } 
-  else { ov.className = `show p${p}-wins`; document.getElementById('winner-text').textContent = `${P_NAME[p]} wins!`; }
+  if (p === 0) { 
+      ov.className = `show`; 
+      document.getElementById('winner-text').textContent = `IT'S A DRAW!`; 
+  } else { 
+      ov.className = `show p${p}-wins`; 
+      document.getElementById('winner-text').textContent = `${P_NAME[p]} wins!`; 
+  }
+
+  // --- SÉCURITÉ DE L'INTERFACE DE VICTOIRE ---
+  const replayBtn = document.getElementById('replay-btn');
+  const lobbyBtn = document.getElementById('winner-lobby-btn');
+
+  if (gameMode === 'online' && !isHost) {
+      // Version Invités : On cache le bouton rejouer et on grise le retour au salon
+      if (replayBtn) replayBtn.style.display = 'none';
+      if (lobbyBtn) {
+          lobbyBtn.innerHTML = 'En attente de l\'hôte...';
+          lobbyBtn.disabled = true;
+          lobbyBtn.classList.add('disabled-for-client'); // Optionnel, pour le style CSS
+      }
+  } else {
+      // Version Hôte / Local : Contrôle total
+      if (replayBtn) replayBtn.style.display = 'inline-block';
+      if (lobbyBtn) {
+          lobbyBtn.innerHTML = 'Retour au Salon';
+          lobbyBtn.disabled = false;
+          lobbyBtn.classList.remove('disabled-for-client');
+      }
+  }
 }
 
 function updatePanels() {
@@ -1302,7 +1385,7 @@ function updatePanels() {
     }
     const badge = document.getElementById(`p${p}-badge`); if (badge) badge.classList.toggle('show', currentPlayer === p && !playerHasPlaced[p] && !isDead);
   }
-  document.body.classList.remove('turn-p1', 'turn-p2', 'turn-p3', 'turn-p4');
+  document.body.classList.remove('turn-p1', 'turn-p2', 'turn-p3', 'turn-p4', 'turn-p5', 'turn-p6');
   if (!gameOver) document.body.classList.add(`turn-p${currentPlayer}`);
 }
 
@@ -1320,8 +1403,19 @@ function setStatus(msg, cls = '') {
 
 function selectPowerup(t) {
   if (animating || gameOver) return;
-  if (t !== 'normal' && (!powerupStock[currentPlayer] || !powerupStock[currentPlayer][t] || powerupStock[currentPlayer][t] <= 0)) { setStatus(`No ${t}s left!`, 'warn'); return; }
-  selectedPowerup = t; updatePowerupUI();
+  
+  // --- NOUVEAU : On bloque les pouvoirs au premier tour ---
+  if (!playerHasPlaced[currentPlayer] && t !== 'normal') {
+      setStatus("Pouvoirs non autorisés au premier tour !", "warn");
+      return;
+  }
+
+  if (t !== 'normal' && (!powerupStock[currentPlayer] || !powerupStock[currentPlayer][t] || powerupStock[currentPlayer][t] <= 0)) { 
+      setStatus(`No ${t}s left!`, 'warn'); 
+      return; 
+  }
+  selectedPowerup = t; 
+  updatePowerupUI();
 }
 
 function updatePowerupUI() {
@@ -1428,13 +1522,31 @@ if (socket) {
 
     socket.on('settingsChanged', (settings) => {
         if(!isHost) {
-            // Mise à jour des variables
+            // 1. Mise à jour des variables de base
             playerCount = settings.playerCount;
             currentGridSize = settings.gridSize;
             currentBiome = settings.biome;
             document.getElementById('biome-select').value = settings.biome;
 
-            // Mise à jour visuelle des boutons "Joueurs" (sans faire de .click())
+            // --- CORRECTION BUG 1 : Mise à jour de ROWS et COLS ---
+            if (currentGridSize === 'small') { ROWS = 6; COLS = 6; } 
+            else if (currentGridSize === 'normal') { ROWS = 8; COLS = 10; } 
+            else if (currentGridSize === 'big') { ROWS = 11; COLS = 15; }
+
+            // --- CORRECTION BUG 2 : Mise à jour des événements (Toggles) ---
+            if (settings.toggles) {
+                lightningEnabled = settings.toggles.lightning;
+                overgrowthEnabled = settings.toggles.overgrowth;
+                blackHolesEnabled = settings.toggles.blackHoles;
+                wallsEnabled = settings.toggles.walls;
+                teleportersEnabled = settings.toggles.teleporters;
+                shieldsEnabled = settings.toggles.shields;
+                bombsEnabled = settings.toggles.bombs;
+                iceEnabled = settings.toggles.ice;
+                sismicEnabled = settings.toggles.sismic;
+            }
+
+            // 2. Mise à jour visuelle des boutons "Joueurs" (sans faire de .click())
             [2,3,4,5,6].forEach(i => {
                 const btn = document.getElementById(`pc-${i}`);
                 if(btn) btn.classList.toggle('selected', i === playerCount);
@@ -1444,7 +1556,7 @@ if (socket) {
                 if(sw) sw.classList.toggle('on', i <= playerCount);
             });
 
-            // Mise à jour visuelle des boutons "Taille"
+            // 3. Mise à jour visuelle des boutons "Taille"
             ['small', 'normal', 'big'].forEach(s => {
                 const el = document.getElementById(`gs-${s}`);
                 if (el) el.classList.toggle('selected', s === currentGridSize);

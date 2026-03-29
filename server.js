@@ -16,8 +16,8 @@ io.on('connection', (socket) => {
         // Initialisation de la salle si elle n'existe pas
         if (!rooms[roomCode]) {
             rooms[roomCode] = {
-                clients: [], // Garde l'ordre de connexion
-                settings: { playerCount: 3, gridSize: 'normal', biome: 'classic' }, // Stockage des options
+                clients: [], 
+                settings: { playerCount: 3, gridSize: 'normal', biome: 'classic', toggles: {} }, 
                 grid: null,
                 isPlaying: false
             };
@@ -33,6 +33,28 @@ io.on('connection', (socket) => {
             roomCode: roomCode,
             isHost: isHost,
             settings: room.settings
+        });
+    });
+
+    // Création de salon sécurisée côté serveur
+    socket.on('createRoom', () => {
+        let newRoomCode;
+        
+        // CORRECTION : On vérifie l'unicité directement dans notre objet 'rooms'
+        while (rooms[newRoomCode = Math.random().toString(36).substring(2, 8).toUpperCase()]);
+
+        rooms[newRoomCode] = {
+            clients: [socket.id],
+            settings: { playerCount: 3, gridSize: 'normal', biome: 'classic', toggles: {} },
+            grid: null,
+            isPlaying: false
+        };
+
+        socket.join(newRoomCode);
+        socket.emit('lobbyJoined', {
+            roomCode: newRoomCode,
+            isHost: true,
+            settings: rooms[newRoomCode].settings
         });
     });
 
