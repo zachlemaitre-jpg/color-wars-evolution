@@ -705,11 +705,23 @@ function syncGameState() {
 function quitGame(p) {
   if (currentPlayer !== p || animating || gameOver) return;
   if (!confirm("Voulez-vous vraiment quitter la partie ? Toutes vos cases disparaitront.")) return;
+  
+  if (gameMode === 'online') {
+      socket.emit('requestQuit', { room: currentRoom, player: p });
+  } else {
+      performQuitLogic(p);
+  }
+}
+
+function performQuitLogic(p) {
   for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
       if (grid[r][c].owner === p && !grid[r][c].isDestroyed) { grid[r][c].dots = []; grid[r][c].owner = 0; }
   }
-  playerHasPlaced[p] = true; setStatus(`${P_NAME[p]} a quitté la partie.`, 'warn');
-  renderAll(); checkWin(); if (!gameOver) advanceTurn();
+  playerHasPlaced[p] = true; 
+  setStatus(`${P_NAME[p]} a quitté la partie.`, 'warn');
+  renderAll(); 
+  checkWin(); 
+  if (!gameOver) advanceTurn();
 }
 
 function openFusionModal(p) {
@@ -1682,6 +1694,10 @@ if (socket) {
                 if (nameEl) nameEl.textContent = p.pseudo;
             });
         }
+    });
+    
+    socket.on('playerQuit', (p) => {
+        performQuitLogic(p);
     });
 
     socket.on('settingsChanged', (settings) => {

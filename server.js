@@ -48,6 +48,9 @@ io.on('connection', (socket) => {
         // Si la partie est DÉJÀ en cours, on force l'invité en Spectateur instantanément
         // plutôt que de le laisser bloqué sur l'écran du lobby indéfiniment.
         if (room.isPlaying && !isHost) {
+            // --- On identifie le client actuel pour lui donner son rôle ---
+            const spectatorClient = room.clients.find(c => c.id === socket.id);
+            if (spectatorClient) spectatorClient.playerNum = 'spectator';
             socket.emit('gameStarted', { playerNum: 'spectator', settings: room.settings });
             // Envoi de l'état complet (grille + tour + stocks...) pour un affichage immédiatement correct
             if (room.lastGameState) {
@@ -95,7 +98,7 @@ io.on('connection', (socket) => {
 
     socket.on('requestStartGame', (data) => {
         const room = rooms[data.roomCode];
-        if (room && room.clients[0].id === socket.id) { // VÉRIF MIGRÉE
+        if (room && room.clients[0].id === socket.id) {
             room.isPlaying = true;
             
             room.clients.forEach((client, index) => {
@@ -103,6 +106,7 @@ io.on('connection', (socket) => {
                 if (index < room.settings.playerCount) {
                     role = index + 1; 
                 }
+                client.playerNum = role; // On fixe le rôle à vie !
                 io.to(client.id).emit('gameStarted', { playerNum: role, settings: room.settings });
             });
         }
@@ -154,6 +158,15 @@ io.on('connection', (socket) => {
         if (room && room.clients.find(c => c.id === socket.id)) {
             room.lastActivity = Date.now();
             io.to(data.room).emit('fusionExecuted', data);
+        }
+    });
+
+    socket.on('requestQuit', (data) => {
+        const room = rooms[data.room];
+        // On vérifie que l'émetteur est bien dans le salon
+        if (room && room.clients.find(c => c.id === socket.id)) {
+            room.lastActivity = Date.now();
+            io.to(data.room).emit('playerQuit', data.player);
         }
     });
 
