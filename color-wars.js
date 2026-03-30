@@ -1803,33 +1803,43 @@ if (socket) {
     socket.on('updateBoard', (data) => {
         const r = data.r, c = data.c, p = Number(data.player);
 
-        // L'Hôte est le videur : il vérifie la légalité du coup avant de l'exécuter.
-        // Les invités font confiance à l'état que l'Hôte leur synchronise.
-        if (isHost) {
-            const d = grid[r][c];
-            const isFree = !playerHasPlaced[p];
-
-            // Triche 1 : Placer sur une case non vide au premier tour
-            if (isFree && (d.owner !== 0 || d.dots.length > 0)) return;
-
-            if (!isFree) {
-                if (data.powerup === 'ice') {
-                    // Triche 2a : Cibler une case vide avec ice (rien à geler)
-                    if (d.dots.length === 0) return;
-                } else {
-                    // Triche 2b : Jouer sur la case d'un autre joueur
-                    if (d.owner !== p) return;
-                }
-            }
-
-            // Triche 3 : Jouer sur une case gelée ou détruite
-            if (d.isFrozen || d.isDestroyed) return;
+        // --- 🛡️ LE VERROU ANTI-SPAM ABSOLU ---
+        // Si l'ordre reçu ne correspond plus au joueur actuel (car le tour a déjà avancé)
+        // OU si le jeu est en train d'animer le premier clic, on détruit le paquet !
+        if (p !== currentPlayer || animating || window.explosionProcessing) {
+            console.warn("Coup ignoré : Spam ou désynchronisation.");
+            return;
         }
 
+        // --- VÉRIFICATION DE LA LÉGALITÉ DU COUP ---
+        // (J'ai retiré le 'if (isHost)' pour que TOUT LE MONDE vérifie et bloque les tricheurs)
+        const d = grid[r][c];
+        const isFree = !playerHasPlaced[p];
+
+        // Triche 1 : Placer sur une case non vide au premier tour
+        if (isFree && (d.owner !== 0 || d.dots.length > 0)) return;
+
+        if (!isFree) {
+            if (data.powerup === 'ice') {
+                // Triche 2a : Cibler une case vide avec ice
+                if (d.dots.length === 0) return;
+            } else {
+                // Triche 2b : Jouer sur la case d'un autre joueur
+                if (d.owner !== p) return;
+            }
+        }
+
+        // Triche 3 : Jouer sur une case gelée ou détruite
+        if (d.isFrozen || d.isDestroyed) return;
+
+        // Si c'est le bon tour, que le jeu est calme, et que le coup est légal : on joue !
         executeTurn(r, c, p, data.powerup);
     });
 
     socket.on('returnToLobby', () => {
+        // --- On force la disparition des écrans superposés ---
+        document.getElementById('winner-overlay').className = ''; 
+        document.getElementById('fusion-overlay').classList.add('hidden');
         // 1. On cache le jeu et on affiche le menu de configuration
         document.getElementById('game-container').style.display = 'none';
         document.getElementById('game-title').style.display = 'none';
