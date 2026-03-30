@@ -875,16 +875,13 @@ function processExplosionQueue(initialQueue) {
       }
 
       if (!window.explosionQueue.length) {
-          // On vérifie s'il reste des points en train de voler ou de glisser
-          if (activeProjectiles > 0) {
-              setTimeout(next, 50); 
-              return; 
-          }
+          // On vérifie s'il reste des points en train de voler
+          if (activeProjectiles > 0) { setTimeout(next, 50); return; }
 
           // Tout est fini : on arrête l'animation
           window.explosionProcessing = false;
           animating = false;
-          
+
           // On rafraîchit l'affichage final
           renderAll();
           checkWin();
@@ -1069,6 +1066,18 @@ function animateSuckIn(cx, cy, player, dtype, cb) {
 }
 
 // ─── End Turn Mechanics ───────────────────────────────────────────────────────
+
+// --- On attend que tout soit calme avant de finir le tour ---
+function waitAndFinalizeTurn() {
+    if (animating || window.explosionProcessing || activeProjectiles > 0) {
+        // S'il y a la moindre animation en cours, on repousse la fin du tour de 100ms
+        setTimeout(waitAndFinalizeTurn, 100);
+    } else {
+        // Tout est figé : on peut compter les points et changer de joueur en toute sécurité !
+        finalizeTurn();
+    }
+}
+
 function advanceTurn() {
   if (gameMode === 'online' && !isHost) return; // L'invité attend le loadMap de l'Hôte
 
@@ -1089,7 +1098,7 @@ function advanceTurn() {
       return;
   }
 
-  finalizeTurn();
+  waitAndFinalizeTurn();
 }
 
 function tickGeysers() {
@@ -1138,7 +1147,7 @@ function tickConveyors() {
               if (!window.explosionQueue) window.explosionQueue = [];
               m.dots.forEach(dot => landDot(m.tr, m.tc, m.owner, dot.type, window.explosionQueue, m.dr, m.dc));
               if (!window.explosionProcessing && window.explosionQueue.length > 0) processExplosionQueue();
-              else if (activeProjectiles === 0 && window.explosionQueue.length === 0) { animating = false; checkWin(); }
+              else if (activeProjectiles === 0 && window.explosionQueue.length === 0) { animating = false; }
           });
       });
   }
@@ -1201,7 +1210,7 @@ function tickBombs() {
         activeProjectiles--;
         landDot(t.r, t.c, explodeAs, 'normal', window.explosionQueue, t.dr, t.dc);
         if (!window.explosionProcessing && window.explosionQueue.length > 0) processExplosionQueue();
-        else if (activeProjectiles === 0 && window.explosionQueue.length === 0) { animating = false; checkWin(); }
+        else if (activeProjectiles === 0 && window.explosionQueue.length === 0) { animating = false; }
       });
     });
   }
@@ -1388,7 +1397,8 @@ function triggerSismicCollapse() {
     if (tumorDestroyedBySismic) { destroyTumor(); setStatus('The Vegetal Tumor fell into the abyss!', 'info'); }
     setTimeout(() => {
        targets.forEach(([r, c]) => { const el = document.getElementById(`cell-${r}-${c}`); if (el) { el.classList.remove('sismic-falling'); el.classList.add('sismic-destroyed'); } });
-       animating = false; renderAll(); finalizeTurn();
+       animating = false; renderAll();
+       waitAndFinalizeTurn();
     }, 700);
   }, 2000);
 }
