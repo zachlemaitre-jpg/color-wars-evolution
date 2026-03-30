@@ -119,22 +119,33 @@ button.primary:hover { opacity: 0.9; transform: translateY(-1px); }
 
 /* ─── Dots ───────────────────────────────────────────────────────────────────── */
 .dots-container { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: 2px; flex-wrap: wrap; padding: 5px; pointer-events: none; overflow: visible; z-index: 5; }
-.dot { width: 11px; height: 11px; border-radius: 50%; flex-shrink: 0; }
+
+/* 1. AJOUT ICI : Une bordure noire sur les points de base, et "box-sizing" pour ne pas agrandir leur taille globale */
+.dot { width: 11px; height: 11px; border-radius: 50%; flex-shrink: 0; border: 1px solid #000000; box-sizing: border-box; }
+
 .dot.p1 { background: var(--p1); box-shadow: 0 0 5px var(--p1); } .dot.p2 { background: var(--p2); box-shadow: 0 0 5px var(--p2); }
 .dot.p3 { background: var(--p3); box-shadow: 0 0 5px var(--p3); } .dot.p4 { background: var(--p4); box-shadow: 0 0 5px var(--p4); }
-.dot.shield-p1, .dot.shield-p2, .dot.shield-p3, .dot.shield-p4, .dot.shield-p5, .dot.shield-p6 { background: transparent; border-radius: 0; box-shadow: none; width: 11px; height: 11px; clip-path: polygon(50% 0%, 100% 20%, 100% 60%, 50% 100%, 0% 60%, 0% 20%); position: relative; }
+
+/* 2. AJOUT ICI : "border: none;" à la fin pour retirer la bordure noire sur les boucliers (sinon ça fera un carré moche autour de la forme) */
+.dot.shield-p1, .dot.shield-p2, .dot.shield-p3, .dot.shield-p4, .dot.shield-p5, .dot.shield-p6 { background: transparent; border-radius: 0; box-shadow: none; width: 11px; height: 11px; clip-path: polygon(50% 0%, 100% 20%, 100% 60%, 50% 100%, 0% 60%, 0% 20%); position: relative; border: none; }
+
 .dot.shield-p1 { background: var(--p1); filter: brightness(1.6) drop-shadow(0 0 3px var(--p1)); }
 .dot.shield-p2 { background: var(--p2); filter: brightness(1.6) drop-shadow(0 0 3px var(--p2)); }
 .dot.shield-p3 { background: var(--p3); filter: brightness(1.6) drop-shadow(0 0 3px var(--p3)); }
 .dot.shield-p4 { background: var(--p4); filter: brightness(1.6) drop-shadow(0 0 3px var(--p4)); }
-.dot.bomb { background: transparent; box-shadow: none; animation: none; width: 11px; height: 11px; border-radius: 0; flex-shrink: 0; position: relative; }
+
+/* 3. AJOUT ICI : "border: none;" pour retirer la bordure noire autour du dessin SVG de la bombe */
+.dot.bomb { background: transparent; box-shadow: none; animation: none; width: 11px; height: 11px; border-radius: 0; flex-shrink: 0; position: relative; border: none; }
 .dot.bomb svg { display: block; width: 11px; height: 11px; }
+
 @keyframes bombFuse { from { opacity: 1; } to { opacity: 0.3; } }
 .count-badge { position: absolute; bottom: 4px; right: 5px; font-family: 'Space Mono', monospace; font-size: 9px; font-weight: 700; opacity: 0.7; pointer-events: none; }
 .count-badge.p1 { color: var(--p1-light); } .count-badge.p2 { color: var(--p2-light); }
 .count-badge.p3 { color: var(--p3-light); } .count-badge.p4 { color: var(--p4-light); }
 
-.flying-dot { position: fixed; width: 11px; height: 11px; border-radius: 50%; pointer-events: none; z-index: 9999; }
+/* 4. AJOUT ICI : La bordure noire pour les points quand ils volent lors des explosions */
+.flying-dot { position: fixed; width: 11px; height: 11px; border-radius: 50%; pointer-events: none; z-index: 9999; border: 1px solid #000000; box-sizing: border-box; }
+
 .flying-dot.p1 { background: var(--p1); box-shadow: 0 0 8px var(--p1); } .flying-dot.p2 { background: var(--p2); box-shadow: 0 0 8px var(--p2); }
 .flying-dot.p3 { background: var(--p3); box-shadow: 0 0 8px var(--p3); } .flying-dot.p4 { background: var(--p4); box-shadow: 0 0 8px var(--p4); }
 
