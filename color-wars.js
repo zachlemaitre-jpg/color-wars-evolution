@@ -11,6 +11,7 @@ let COLS = 10, ROWS = 8;
 const THRESHOLD = 4;
 const MAX_BOMBS = 2, MAX_SHIELDS = 3, MAX_ICE = 1;
 
+let turnInProgress = false;
 // ─── Player config ────────────────────────────────────────────────────────────
 let isHost = true; // Par défaut en Local
 const P_COLOR = { 1:'#e63946', 2:'#2196f3', 3:'#2ecc71', 4:'#f4e04d', 5:'#ff4081', 6:'#18ffff' };
@@ -358,7 +359,7 @@ function buildGameUI() {
   } else {
       // Les invités voient uniquement "Salon" et "Manuel"
       ctrlBlock.innerHTML = `
-        <button id="return-lobby-btn" onclick="returnToLobby()">← Salon</button>
+        <button id="return-lobby-btn" disabled class="disabled-for-client">En attente de l'hôte...</button>
         <button onclick="openRulebook()">📖 Manuel</button>`;
   }
   ctrlRow.appendChild(ctrlBlock);
@@ -808,6 +809,7 @@ function handleClick(r, c) {
 }
 
 function executeTurn(r, c, player, powerup) {
+    turnInProgress = true;
     let oldPowerup = selectedPowerup;
     selectedPowerup = powerup; 
     const d = grid[r][c];
@@ -1180,6 +1182,7 @@ function finalizeTurn() {
   checkWin();
 
   // --- SYNCHRONISATION FORCÉE DEPLACÉE ICI (À LA FIN) ---
+  turnInProgress = false;
   syncGameState();
 }
 
@@ -1549,6 +1552,9 @@ function updatePowerupUI() {
 }
 
 function resetGame() {
+  if (gameMode === 'online' && isHost && !isRemote) {
+      socket.emit('requestRestart', currentRoom);
+  }
   // 1. RÉINITIALISATION DES VARIABLES (Pour TOUT LE MONDE)
   gameCount++; 
   gameOver = false; 
@@ -1802,7 +1808,7 @@ if (socket) {
             if (data.gameCount !== undefined) gameCount = data.gameCount;
             if (data.turnCount !== undefined) turnCount = data.turnCount;
             if (data.powerupStock !== undefined) powerupStock = data.powerupStock;
-
+            turnInProgress = false;
             // --- 3. RENDU INTELLIGENT ---
             // On ne redessine TOUT le plateau que si on n'est pas en train d'animer.
             // Cela évite le "clignotement" désagréable pendant que les points volent.
@@ -1819,11 +1825,11 @@ if (socket) {
     socket.on('updateBoard', (data) => {
         const r = data.r, c = data.c, p = Number(data.player);
 
-        // --- 🛡️ LE VERROU ANTI-SPAM ABSOLU ---
         // Si l'ordre reçu ne correspond plus au joueur actuel (car le tour a déjà avancé)
         // OU si le jeu est en train d'animer le premier clic, on détruit le paquet !
-        if (p !== currentPlayer || animating || window.explosionProcessing) {
-            console.warn("Coup ignoré : Spam ou désynchronisation.");
+        // --- 🛡️ LE VRAI VERROU ANTI-SPAM ---
+        if (p !== currentPlayer || turnInProgress) {
+            console.warn("Coup ignoré : Spam ou tour déjà en cours.");
             return;
         }
 
@@ -1904,6 +1910,13 @@ if (socket) {
         }
     });
 
+    socket.on('requestRestart', (roomCode) => {
+        const room = rooms[roomCode];
+        if (room && room.clients[0].id === socket.id) {
+            io.to(roomCode).emit('executeRestart');
+        }
+    });
+    
     socket.on('chatMessage', (data) => {
         const messagesContainer = document.getElementById('chat-messages');
         const msgDiv = document.createElement('div');
@@ -1928,5 +1941,11 @@ if (socket) {
         msgDiv.appendChild(textSpan);
         messagesContainer.appendChild(msgDiv);
         messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    });
+
+    socket.on('executeRestart', () => {
+        if (!isHost) {
+            resetGame(true); // L'invité réinitialise son jeu (true = évite la boucle infinie)
+        }
     });
 }
